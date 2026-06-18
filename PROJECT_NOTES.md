@@ -122,18 +122,26 @@ OFFSET = 0.000448 was computed to guarantee ≥0.1mm melt at every sole crossing
 
 ### `cut_v_through_lattice.py` (~line 42)
 ```
-ANKLE_X=-0.0115; TIP_X=0.078; HALF_W_MAX=0.006  # V: 12mm wide fat end
+ANKLE_X=-0.0115; TIP_X=0.0914; HALF_W_MAX=0.006  # V: 12mm wide fat end; tip +13.4mm (~15% of wedge) toward toe
 ROT_DEG=-1.0    # V rotation (CW top-down), free knob
 ```
+`TIP_X` was 0.078; extended to 0.0914 after the first test print made it hard
+to stuff the foot through the opening. The wedge length is 89.5mm, so +13.4mm
+= ~15%. Toe mesh extends to x=0.1204, so there is still ~29mm of solid fused
+toe material beyond the new tip.
 
 ### `build_tongue.py`
+Shares `ANKLE_X`/`TIP_X`/`HALF_W_MAX`/`ROT_DEG` with the V cut (must stay in
+sync). The tongue elongates automatically with the wedge: `hw_at`, the
+superellipse rim, and the conform zone all scale off `[ANKLE_X, TIP_X]` and
+`FRONT_X=TIP_X+0.006`.
 ```
 FRONT_X=TIP_X+0.006   # tongue tip embed (hinge/attachment)
 BACK_X =-0.0105       # flush with ankle opening (x=-9.9mm vs opening -10.0mm)
 THICKNESS=0.0010; HATCH_SPACING=0.0045; RIB_RADIUS=0.00055
 SUP_N=2.5             # superellipse corner rounding (rim + lattice clip MUST match)
 dome_factor=1.0       # visor bend (constant)
-ROT_ANGLE_DEG=-6.0    # tongue pitch (pivot at FRONT_X-0.015)
+ROT_ANGLE_DEG=-5.0    # tongue pitch (pivot at FRONT_X-0.015); backed off 1deg from -6 after elongation poked tip ~0.05mm through dorsal
 ```
 
 ---
@@ -144,7 +152,9 @@ ROT_ANGLE_DEG=-6.0    # tongue pitch (pivot at FRONT_X-0.015)
 exec(compile(open(base+'safe_export_stl.py').read(), base+'safe_export_stl.py', 'exec'), {})
 ```
 
-Non-destructive: duplicates the 4 curve objects → converts COPIES to mesh → joins → exports STL → deletes copies. Original curves untouched. The boot reference mesh is excluded (not printed).
+Non-destructive: duplicates the 4 curve objects → converts COPIES to mesh → joins → **flattens the ankle (−X) end** (see below) → exports STL → deletes copies. Original curves untouched. The boot reference mesh is excluded (not printed).
+
+**Ankle flatten (print-flat):** the round rim/tongue beads at the ankle bulge to ~−11.3mm and are not flat, so the boot rocked when printed ankle-down on the build plate. After joining, the export copy is sliced by a plane at `ANKLE_FLAT_X = -0.0100` (−10.0mm, flush with the shoe body's −X extent): `bisect_plane` cuts, verts with `x < ANKLE_FLAT_X` are deleted, and the cut edges on the plane are capped with `triangle_fill` so the whole −X end is one solid flat face. This trims ~0.5mm off the tongue's back rim in the process.
 
 **Never use `export_stl.py`** — it converts/joins the originals in-place, destroying the editable curves.
 
@@ -186,7 +196,10 @@ The exported STL contains Lattice_OUTER + Lattice_INNER + Rims + Tongue, joined 
 
 **Known / accepted:**
 - Faint seam at y≈−1.5 down the top center
-- Printability untested (STL exported, not yet test-printed)
+- Test print #1 (TPU): structurally sound, but the V opening was too small to
+  stuff the foot through comfortably → wedge + tongue elongated ~15%
+  (TIP_X 0.078 → 0.0914) in `cut_v_through_lattice.py` / `build_tongue.py`.
+  Awaiting test print #2.
 
 **Not done:**
 - Clasp / lace / strap system

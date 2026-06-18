@@ -39,7 +39,7 @@ def cy_at(x):
     return 0.0
 
 # --- V params ---
-ANKLE_X=-0.0115; TIP_X=0.078; HALF_W_MAX=0.006; DORSAL_Z=0.25
+ANKLE_X=-0.0115; TIP_X=0.0914; HALF_W_MAX=0.006; DORSAL_Z=0.25  # +13.4mm (~15% of 89.5mm wedge) toward toe for foot entry
 ROT_DEG=-1.0   # FREE KNOB now (no tear coupling). -1deg aligns with centerline.
 
 theta=math.radians(ROT_DEG); cos_t=math.cos(theta); sin_t=math.sin(theta)

@@ -66,7 +66,7 @@ kd.balance()
 def surface_z_at(x,y):
     co,idx,d=kd.find((x,y,ridge_at(x)-0.002)); return V[idx][2]
 
-ANKLE_X=-0.0115; TIP_X=0.078; HALF_W_MAX=0.006
+ANKLE_X=-0.0115; TIP_X=0.0914; HALF_W_MAX=0.006  # matches cut_v_through_lattice.py (+15% toward toe)
 ROT_DEG=-1.0
 theta=math.radians(ROT_DEG); cos_t=math.cos(theta); sin_t=math.sin(theta)
 cx_v=(ANKLE_X+TIP_X)/2.0; cy_v=0.0
@@ -234,7 +234,7 @@ bpy.context.collection.objects.link(tobj); tobj.parent=boot
 # negative angle = back(down) / tip(up); positive = opposite
 ROT_PIVOT_X = FRONT_X - 0.015   # 15mm back from attachment tip
 ROT_PIVOT_Z = spine_z(ROT_PIVOT_X)
-ROT_ANGLE_DEG = -6.0           # KNOB: final angle
+ROT_ANGLE_DEG = -4.0           # KNOB: final angle (backed off 2deg from -6; tongue tip was poking ~0.05mm through dorsal after elongation)
 theta_r = math.radians(ROT_ANGLE_DEG)
 rct = math.cos(theta_r); rst = math.sin(theta_r)
 for sp in crv.splines:
