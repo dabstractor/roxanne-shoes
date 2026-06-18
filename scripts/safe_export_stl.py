@@ -8,8 +8,8 @@ project = '/home/dustin/Documents/Models/Roxanne Shoes/'
 # unhide boot so we can manipulate (but we won't export it)
 bpy.data.objects['left boot cutout meters'].hide_set(False)
 
-# objects to export: lattice + rims + tongue (the actual printable geometry)
-curve_objs = [bpy.data.objects[n] for n in ('Lattice_OUTER','Lattice_INNER','Rims','Tongue')]
+# objects to export: lattice + rims + tongue + ankle reinforcement (the actual printable geometry)
+curve_objs = [bpy.data.objects[n] for n in ('Lattice_OUTER','Lattice_INNER','Rims','Tongue','Ankle_Reinforce')]
 
 print('=== SAFE EXPORT (working on copies, originals untouched) ===')
 copies = []
@@ -18,6 +18,8 @@ for o in curve_objs:
     o_copy = o.copy()
     o_copy.data = o.data.copy()
     o_copy.name = o.name + '_EXPORT'
+    # o.copy() carries the object's modifier stack (e.g. Ankle_Reinforce's Solidify);
+    # convert(target='MESH') below bakes those modifiers into the exported mesh.
     bpy.context.collection.objects.link(o_copy)
     copies.append(o_copy)
 
@@ -37,6 +39,33 @@ for o_copy in copies:
 bpy.context.view_layer.objects.active = master
 bpy.ops.object.join()
 print('  joined export object: %d verts, %d faces' % (len(master.data.vertices), len(master.data.polygons)))
+
+# === FLATTEN THE ANKLE (-X) END INTO A PERFECT PLANE ===
+# The round rim/tongue beads at the ankle bulge to ~-11.3mm and are not flat,
+# so the boot rocks when printed ankle-down on the build plate. Slice off
+# everything -X of this plane and CAP the cut so the whole -X end is one
+# solid flat face that sits flush on the plate.
+# (Non-destructive: this only touches the joined EXPORT copy.)
+import bmesh
+ANKLE_FLAT_X = -0.0100   # -10.0mm = flush with the shoe body's -X extent
+before_v = len(master.data.vertices)
+bm = bmesh.new(); bm.from_mesh(master.data)
+geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(ANKLE_FLAT_X,0,0), plane_no=(1,0,0),
+                       dist=1e-7, clear_outer=False, clear_inner=False)
+# delete everything strictly -X of the cut plane
+bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.x < ANKLE_FLAT_X - 1e-6], context='VERTS')
+# cap the cut: fill boundary edges lying exactly on the plane -> solid flat face
+bm.edges.ensure_lookup_table()
+cut_edges = [e for e in bm.edges
+             if len(e.link_faces) == 1
+             and abs(e.verts[0].co.x - ANKLE_FLAT_X) < 1e-5
+             and abs(e.verts[1].co.x - ANKLE_FLAT_X) < 1e-5]
+if cut_edges:
+    bmesh.ops.triangle_fill(bm, edges=cut_edges, use_beauty=True)
+bm.normal_update(); bm.to_mesh(master.data); bm.free(); master.data.update()
+print('  ankle flattened at x=%.1fmm: %d -> %d verts (capped %d cut edges)' % (
+    ANKLE_FLAT_X*1000, before_v, len(master.data.vertices), len(cut_edges)))
 
 # export STL
 stl_path = os.path.join(project, 'shoe_export.stl')

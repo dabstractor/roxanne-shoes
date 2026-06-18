@@ -88,9 +88,9 @@ HATCH_SPACING=0.0045   # ~4.5mm between parallel lines
 RIB_RADIUS=0.00055     # 0.55mm ribbon
 
 def hw_at(x):
-    if x> TIP_X:  return 0.0050
-    if x<ANKLE_X: return 0.0130
-    s=(x-ANKLE_X)/(TIP_X-ANKLE_X); return 0.0130+(0.0050-0.0130)*s
+    if x> TIP_X:  return 0.0060   # 120% width: tip half 5.0->6.0mm
+    if x<ANKLE_X: return 0.0156   # 120% width: ankle half 13.0->15.6mm
+    s=(x-ANKLE_X)/(TIP_X-ANKLE_X); return 0.0156+(0.0060-0.0156)*s
 
 def sstep(a,b,x):
     t=max(0.0,min(1.0,(x-a)/(b-a) if b!=a else 0.0)); return t*t*(3-2*t)
