@@ -30,6 +30,7 @@ Roxanne Shoes/
     ├── cut_v_through_lattice.py    # STEP 2: cut V through mesh + trim lattice curves
     ├── build_rims.py               # STEP 3: smooth boundary rim spines
     ├── build_tongue.py             # STEP 4: thatched tongue + double rim + rotation
+    ├── build_ankle_reinforce.py    # STEP 5: two solid ankle bands (lace/clip anchors)
     ├── safe_export_stl.py          # NON-DESTRUCTIVE export — USE THIS
     ├── export_stl.py               # ⚠️ DESTRUCTIVE (old) — do not use
     ├── cut_v_curved.py             # OLD V-cut — superseded by cut_v_through_lattice.py
@@ -48,6 +49,7 @@ Roxanne Shoes/
 | `Lattice_INNER` | CURVE | Inner family (offset inward), 50 splines |
 | `Rims` | CURVE | Solid spine tracing the V+ankle boundary perimeter |
 | `Tongue` | CURVE | Thatched crosshatch flap + double rounded rim, 54 splines |
+| `Ankle_Reinforce` | MESH | Two solid bands on the outer layer (cuff + above-foot) for lace/clip anchors. Raycast parametric grid + Solidify. |
 
 > The boot mesh still has a `GradientSolidify` modifier, but the solid shell is **not part of the final print** — the lattice handles everything (including the toe, via rib fusion). The export excludes the boot mesh entirely. The modifier's `gradient` vertex group is still used by `build_lattice.py` for toe rib thickening.
 
@@ -60,7 +62,7 @@ Run scripts in this exact order. Each must execute in an **isolated namespace** 
 ```python
 import bpy
 base = '/home/dustin/Documents/Models/Roxanne Shoes/scripts/'
-for fn in ['build_lattice.py', 'cut_v_through_lattice.py', 'build_rims.py', 'build_tongue.py']:
+for fn in ['build_lattice.py', 'cut_v_through_lattice.py', 'build_rims.py', 'build_tongue.py', 'build_ankle_reinforce.py']:
     exec(compile(open(base + fn).read(), base + fn, 'exec'), {})
 bpy.data.objects['left boot cutout meters'].hide_set(True)
 ```
@@ -87,7 +89,13 @@ bpy.data.objects['left boot cutout meters'].hide_set(True)
 - Thatched crosshatch: two diagonal families in (u,v) space, clipped to a **superellipse boundary** so lines terminate into the rim (rectangles leave overflow at corners).
 - **Double rim**: outer + inner, both smooth closed superellipse loops. Sides parallel at v=±0.90.
 - **Visor bend**: `dome_factor` constant 1.0 (gentle even arc).
-- **Rotation −6°** (pivot near tip): back dives into cavity, tip lifts into wall for attachment.
+- **Rotation −4°** (pivot near tip): back dives into cavity, tip lifts into wall for attachment.
+
+### Step 5 — `build_ankle_reinforce.py`
+- Two **solid bands** on the outer layer for lace/clip anchor points: a cuff band (x[−9.8..3.2]mm) and an above-foot band (x[23.2..36.8]mm), lattice left open between them.
+- Built as a **clean parametric grid** (NOT extracted mesh faces — those spike): for each x-station, raycast a dense angular fan from the smoothed centerline against the pristine closed shell (true surface points/normals), drop the dorsal hits inside the V polygon (keeps the tongue opening clear), resample every cross-section to a fixed point count by arc length → identical-length rows → clean quads, zero raggedness.
+- Solidify outward (1.5mm wall) caps + embeds the outer lattice tubes into a solid band.
+- This raycast-grid technique is the one that worked; the earlier extract-faces-and-offset approach produced spikes and was scrapped.
 - `use_fill_caps=False` — caps create blobs that look like stray ribs at rim junctions.
 - No separate hinge object — the tongue's tip conforming into the lattice wall is the attachment.
 
@@ -154,7 +162,7 @@ exec(compile(open(base+'safe_export_stl.py').read(), base+'safe_export_stl.py', 
 
 Non-destructive: duplicates the 4 curve objects → converts COPIES to mesh → joins → **flattens the ankle (−X) end** (see below) → exports STL → deletes copies. Original curves untouched. The boot reference mesh is excluded (not printed).
 
-**Ankle flatten (print-flat):** the round rim/tongue beads at the ankle bulge to ~−11.3mm and are not flat, so the boot rocked when printed ankle-down on the build plate. After joining, the export copy is sliced by a plane at `ANKLE_FLAT_X = -0.0100` (−10.0mm, flush with the shoe body's −X extent): `bisect_plane` cuts, verts with `x < ANKLE_FLAT_X` are deleted, and the cut edges on the plane are capped with `triangle_fill` so the whole −X end is one solid flat face. This trims ~0.5mm off the tongue's back rim in the process.
+**Ankle flatten (print-flat, opening preserved):** the round rim/tongue beads at the ankle bulge to ~−11.3mm and are not flat, so the boot rocked when printed ankle-down. After joining, the export copy is sliced by a plane at `ANKLE_FLAT_X = -0.0100` (−10.0mm, flush with the shoe body's −X extent): `bisect_plane` cuts, verts with `x < ANKLE_FLAT_X` are deleted (trims beads flat). Capping is deliberately selective — cut edges are grouped into connected loops and **only loops <30mm² are capped** (individual tube ends). Any large loop (the foot opening) is hard-skipped, so the ankle hole can **never** be sealed. ⚠ HISTORY: an earlier version ran `triangle_fill` on *all* cut edges at once and paved the foot opening shut (re-import showed a closed top); the per-loop area threshold is the fix. Because lattice tubes fuse at crossings, most cut ends register as open rings, so few get capped — the first layer is a flat lattice-ring pattern (planar, no rocking), not a solid disk. If a fully solid flat first layer is ever needed, add a thin outward brim flange (would NOT reduce the foot opening).
 
 **Never use `export_stl.py`** — it converts/joins the originals in-place, destroying the editable curves.
 
