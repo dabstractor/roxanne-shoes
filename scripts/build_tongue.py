@@ -77,7 +77,7 @@ def rot(x,y):
 # --- tongue params ---
 THICKNESS=0.0010
 FRONT_X=0.0974        # tongue tip PINNED (was TIP_X+0.006; decoupled from V depth)
-BACK_X =-0.00905       # pulled forward so the ROTATED back tip lands at the print plane x=-9.9mm (rotation shifts it ~-0.84mm). Coplanar with cuff band + V_Band + ankle rim = flat print surface (ankle-down).
+BACK_X =-0.01066       # extended toward ankle so the ROTATED back tip lands at the print plane x=-11.5mm. Front tip (FRONT_X) unchanged so the hinge attachment to the toe wall is preserved; length is added on the ankle side only.
 CONFORM_LEN=0.014
 NS=48; NW=11
 CONFORM_GAP=0.0008
