@@ -28,7 +28,8 @@ Roxanne Shoes/
 └── scripts/
     ├── build_lattice.py            # STEP 1: lattice on uncut mesh
     ├── cut_v_through_lattice.py    # STEP 2: cut V through mesh + trim lattice curves
-    ├── build_rims.py               # STEP 3: smooth boundary rim spines
+    ├── build_rims.py               # STEP 3: (beads REMOVED — cleanup only)
+    ├── build_v_band.py             # STEP 3b: V-trim band (same tech as reinforce bands; replaces beads)
     ├── build_tongue.py             # STEP 4: thatched tongue + double rim + rotation
     ├── build_ankle_reinforce.py    # STEP 5: two solid ankle bands (lace/clip anchors)
     ├── safe_export_stl.py          # NON-DESTRUCTIVE export — USE THIS
@@ -62,7 +63,7 @@ Run scripts in this exact order. Each must execute in an **isolated namespace** 
 ```python
 import bpy
 base = '/home/dustin/Documents/Models/Roxanne Shoes/scripts/'
-for fn in ['build_lattice.py', 'cut_v_through_lattice.py', 'build_rims.py', 'build_tongue.py', 'build_ankle_reinforce.py']:
+for fn in ['build_lattice.py', 'cut_v_through_lattice.py', 'build_rims.py', 'build_ankle_reinforce.py', 'build_v_band.py', 'build_tongue.py']:
     exec(compile(open(base + fn).read(), base + fn, 'exec'), {})
 bpy.data.objects['left boot cutout meters'].hide_set(True)
 ```
@@ -80,9 +81,17 @@ bpy.data.objects['left boot cutout meters'].hide_set(True)
 - Cuts the V tongue opening using **bisect-planes** (clean edges). Booleans on this open shell fail (they cut the sole instead of the top).
 - Trims the already-built lattice curves that cross the V polygon. **Critical:** only trims points where `z > 0` (dorsal) — a point-in-polygon test alone wrongly removes sole lattice beneath the V.
 
-### Step 3 — `build_rims.py`
-- Traces open boundary edges (V + ankle perimeter) into a solid spine tube.
-- **Direction-aware chaining** (continue straightest at junctions) + Laplacian smoothing. Naive chaining causes direction reversals → jagged zigzag tube.
+### Step 3 — `build_rims.py` (beads REMOVED) + `build_v_band.py` (V trim)
+- The old round rim **beads are gone**. They looked awkward once the solid reinforce bands existed, and the big outer bead fouled the latch/lace.
+- **`build_v_band.py`** replaces them with a flat **V-trim band** along both V edges, built with the SAME technique as the reinforce bands:
+  - **Built on the pristine shell via raycast** (same surface source as the reinforce bands); wall **1.5mm along the true normal** = SAME THICKNESS as the reinforce bands. Follows the surface (no bending up at the toe).
+  - **Seamless merge**: the TOP is built manually (= base + 1.5mm·normal) rather than via Solidify, so where the V band overlaps a reinforce band, each top vert is **SNAPPED onto the reinforce band's evaluated top surface** (raycast the band mesh) → one continuous top surface, no step. (Solidify alone protruded ~0.5mm: the V band sits on the flat dorsal where the normal is vertical so 1.5mm wall = 1.5mm Z-rise, while the reinforce band wraps the curved foot where normals tilt so the same wall = only ~1.0–1.26mm Z-rise. Snapping eliminates the difference exactly.)
+  - Footprint placed **explicitly in XY** (straight-down raycast) so the inner edge lands precisely at `edge − W_IN`, guaranteeing the cut lattice tube ends (measured ~0.8mm intrusion) are covered on BOTH sides (verified: gap clean with tongue hidden).
+  - **Constant width** (W_IN 1.2mm into the gap + W_OUT 2.0mm over the lattice ≈ 1/4 of the reinforce bands), miters to a clean POINT at the V tip.
+  - **Smooth outer edge**: the outer edge is a constant parallel offset of the V edge (never shaved/moved inward); the point comes from a miter at the tip, narrowing from the inside.
+  - **REQUIRES `build_ankle_reinforce.py` to run first** (snaps to its evaluated mesh). Pipeline order reflects this.
+  - Ankle end capped flat at the **print plane** (x=−9.9mm).
+- The **ankle perimeter** needs no bead — the cuff reinforce band covers it.
 
 ### Step 4 — `build_tongue.py`
 - Parametric curved surface (conforms to dorsal at tip, arcs toward centerline).
@@ -94,7 +103,7 @@ bpy.data.objects['left boot cutout meters'].hide_set(True)
 ### Step 5 — `build_ankle_reinforce.py`
 - Two **solid bands** on the outer layer for lace/clip anchor points: a cuff band (x[−9.8..3.2]mm) and an above-foot band (x[23.2..36.8]mm), lattice left open between them.
 - Built as a **clean parametric grid** (NOT extracted mesh faces — those spike): for each x-station, raycast a dense angular fan from the smoothed centerline against the pristine closed shell (true surface points/normals), drop the dorsal hits inside the V polygon (keeps the tongue opening clear), resample every cross-section to a fixed point count by arc length → identical-length rows → clean quads, zero raggedness.
-- Solidify outward (1.5mm wall) caps + embeds the outer lattice tubes into a solid band.
+- Solidify outward (**1.5mm wall** — the user's set value; do NOT thicken. The V band carries the gradient thickening instead) caps + embeds the outer lattice tubes into a solid band.
 - This raycast-grid technique is the one that worked; the earlier extract-faces-and-offset approach produced spikes and was scrapped.
 - `use_fill_caps=False` — caps create blobs that look like stray ribs at rim junctions.
 - No separate hinge object — the tongue's tip conforming into the lattice wall is the attachment.
@@ -130,21 +139,23 @@ OFFSET = 0.000448 was computed to guarantee ≥0.1mm melt at every sole crossing
 
 ### `cut_v_through_lattice.py` (~line 42)
 ```
-ANKLE_X=-0.0115; TIP_X=0.0914; HALF_W_MAX=0.006  # V: 12mm wide fat end; tip +13.4mm (~15% of wedge) toward toe
+ANKLE_X=-0.0115; TIP_X=0.1014; HALF_W_MAX=0.006  # V: 12mm wide fat end; tip +23.4mm (~26% of wedge) toward toe
 ROT_DEG=-1.0    # V rotation (CW top-down), free knob
 ```
-`TIP_X` was 0.078; extended to 0.0914 after the first test print made it hard
-to stuff the foot through the opening. The wedge length is 89.5mm, so +13.4mm
-= ~15%. Toe mesh extends to x=0.1204, so there is still ~29mm of solid fused
-toe material beyond the new tip.
+`TIP_X` history: 0.078 → 0.0914 (test print #1: opening too small) → **0.1014**
+(+10mm more toward the toe, per request to lengthen the V cutout). The wedge
+length is 89.5mm, so +23.4mm = ~26%. Toe mesh extends to x=0.1204, so there is
+still ~19mm of solid fused toe material beyond the new tip.
 
 ### `build_tongue.py`
 Shares `ANKLE_X`/`TIP_X`/`HALF_W_MAX`/`ROT_DEG` with the V cut (must stay in
-sync). The tongue elongates automatically with the wedge: `hw_at`, the
-superellipse rim, and the conform zone all scale off `[ANKLE_X, TIP_X]` and
-`FRONT_X=TIP_X+0.006`.
+sync). The tongue WIDTH and conform zone scale off `[ANKLE_X, TIP_X]`, but the
+**tip position `FRONT_X` is PINNED** (0.0974) so deepening the V no longer drags
+the tongue forward — the tongue stays short and retracts away from the toe.
+At x=0.0974 the V is only ~0.4mm wide, so the 12.7mm-wide tip still embeds ~12mm
+into the solid toe wall on both sides (hinge/attachment preserved).
 ```
-FRONT_X=TIP_X+0.006   # tongue tip embed (hinge/attachment)
+FRONT_X=0.0974        # tongue tip PINNED (was TIP_X+0.006; decoupled from V depth)
 BACK_X =-0.0105       # flush with ankle opening (x=-9.9mm vs opening -10.0mm)
 THICKNESS=0.0010; HATCH_SPACING=0.0045; RIB_RADIUS=0.00055
 SUP_N=2.5             # superellipse corner rounding (rim + lattice clip MUST match)
@@ -162,7 +173,7 @@ exec(compile(open(base+'safe_export_stl.py').read(), base+'safe_export_stl.py', 
 
 Non-destructive: duplicates the 4 curve objects → converts COPIES to mesh → joins → **flattens the ankle (−X) end** (see below) → exports STL → deletes copies. Original curves untouched. The boot reference mesh is excluded (not printed).
 
-**Ankle flatten (print-flat, opening preserved):** the round rim/tongue beads at the ankle bulge to ~−11.3mm and are not flat, so the boot rocked when printed ankle-down. After joining, the export copy is sliced by a plane at `ANKLE_FLAT_X = -0.0100` (−10.0mm, flush with the shoe body's −X extent): `bisect_plane` cuts, verts with `x < ANKLE_FLAT_X` are deleted (trims beads flat). Capping is deliberately selective — cut edges are grouped into connected loops and **only loops <30mm² are capped** (individual tube ends). Any large loop (the foot opening) is hard-skipped, so the ankle hole can **never** be sealed. ⚠ HISTORY: an earlier version ran `triangle_fill` on *all* cut edges at once and paved the foot opening shut (re-import showed a closed top); the per-loop area threshold is the fix. Because lattice tubes fuse at crossings, most cut ends register as open rings, so few get capped — the first layer is a flat lattice-ring pattern (planar, no rocking), not a solid disk. If a fully solid flat first layer is ever needed, add a thin outward brim flange (would NOT reduce the foot opening).
+**Ankle flatten (the PRINT SURFACE — ankle-down):** the boot prints **ankle-down**, so the −X end is the first layer on the build plate and MUST be perfectly flat. The tongue's **back tip** (center of the ankle hole) is the main contact reference. Everything that reaches the ankle — tongue back tip, cuff reinforce band edge, V-trim ankle end, ankle rim — is made **coplanar at the print plane** `ANKLE_FLAT_X = -0.0099` (−9.9mm; the pristine mesh is open at −10.0 = no surface, so −9.9 is the furthest reachable). At export, the joined copy is sliced by `bisect_plane` at ANKLE_FLAT_X; everything with `x < ANKLE_FLAT_X` is deleted (trims the Solidify flare of the cuff band flat) so every remaining cut face lies in that one plane. **Capping is DISABLED** (`CAP_MAX_AREA_M2 = 0`): the cut already makes all faces coplanar (flat first layer; lattice tube ends print as open rings, which is planar and doesn't rock). Earlier selective capping (`<30mm²`) created stray triangles at the ankle where the V-trim + tongue + band cut loops overlapped — disabling it fixed the garbage. The macro foot-opening loop is always skipped, so the ankle hole can **never** be sealed. If a fully solid flat first layer is ever needed, add a thin outward brim flange.
 
 **Never use `export_stl.py`** — it converts/joins the originals in-place, destroying the editable curves.
 
@@ -196,17 +207,21 @@ The exported STL contains Lattice_OUTER + Lattice_INNER + Rims + Tongue, joined 
 
 **Complete:**
 - Bi-helical contour lattice (per-triangle unwrap, smooth, continuous, fuses at toe)
-- V tongue cutout (150% wide, rotated, clean bisect edges)
-- Smooth rim spines
-- Tongue (thatched crosshatch, double rounded rim, visor bend, −6° rotation, flush with ankle)
+- V tongue cutout (150% wide, rotated, clean bisect edges; deepened TIP_X=0.1014)
+- Tongue (thatched crosshatch, double rounded rim, visor bend, −4° rotation, tip PINNED at FRONT_X=0.0974 so it retracts from the deepened V; back tip at the print plane)
+- **V-trim band** (`build_v_band.py`): flat trim along both V edges, SAME 1.5mm wall as the reinforce bands, follows the surface (no toe bend), constant width miters to a clean point (smooth outer edge, narrows from inside), covers cut lattice ends on both sides, and **snaps to the reinforce bands' tops to merge seamlessly** where they cross
+- **Reinforce bands** raised to 1.8mm wall (clears the lattice; was 1.5mm)
 - Sole-touch guarantee (offset 0.448mm → all crossings melt ≥0.1mm)
-- Non-destructive STL export
+- Non-destructive STL export; **print plane** at x=−9.9mm (ankle-down, flat first layer; capping disabled → no ankle garbage)
 
 **Known / accepted:**
 - Faint seam at y≈−1.5 down the top center
 - Test print #1 (TPU): structurally sound, but the V opening was too small to
-  stuff the foot through comfortably → wedge + tongue elongated ~15%
-  (TIP_X 0.078 → 0.0914) in `cut_v_through_lattice.py` / `build_tongue.py`.
+  stuff the foot through comfortably → V wedge deepened
+  (TIP_X 0.078 → 0.0914 → **0.1014**, now +26% / +10mm beyond original) in
+  `cut_v_through_lattice.py` / `build_ankle_reinforce.py`. The **tongue is NOT
+  lengthened** with it — `FRONT_X` pinned at 0.0974 so the tongue retracts back
+  from the toe (10mm shorter than it would be if it tracked the V).
   Awaiting test print #2.
 
 **Not done:**

@@ -66,7 +66,7 @@ kd.balance()
 def surface_z_at(x,y):
     co,idx,d=kd.find((x,y,ridge_at(x)-0.002)); return V[idx][2]
 
-ANKLE_X=-0.0115; TIP_X=0.0914; HALF_W_MAX=0.006  # matches cut_v_through_lattice.py (+15% toward toe)
+ANKLE_X=-0.0115; TIP_X=0.1014; HALF_W_MAX=0.006  # matches cut_v_through_lattice.py (+26% toward toe; +10mm vs prev 0.0914)
 ROT_DEG=-1.0
 theta=math.radians(ROT_DEG); cos_t=math.cos(theta); sin_t=math.sin(theta)
 cx_v=(ANKLE_X+TIP_X)/2.0; cy_v=0.0
@@ -76,8 +76,8 @@ def rot(x,y):
 
 # --- tongue params ---
 THICKNESS=0.0010
-FRONT_X=TIP_X+0.006   # hinge embed into solid toe (+0.2mm longer at top)
-BACK_X =-0.0105        # terminate AT ankle opening edge (was -0.0175, past the shoe)
+FRONT_X=0.0974        # tongue tip PINNED (was TIP_X+0.006; decoupled from V depth)
+BACK_X =-0.00905       # pulled forward so the ROTATED back tip lands at the print plane x=-9.9mm (rotation shifts it ~-0.84mm). Coplanar with cuff band + V_Band + ankle rim = flat print surface (ankle-down).
 CONFORM_LEN=0.014
 NS=48; NW=11
 CONFORM_GAP=0.0008

@@ -63,7 +63,7 @@ def cz_at(x):
     return 0.0
 
 # --- V polygon (MUST match cut_v_through_lattice.py / build_tongue.py) ---
-ANKLE_X=-0.0115; TIP_X=0.0914; HALF_W_MAX=0.006; DORSAL_Z=0.25
+ANKLE_X=-0.0115; TIP_X=0.1014; HALF_W_MAX=0.006; DORSAL_Z=0.25  # matches cut_v_through_lattice.py (+10mm vs prev 0.0914)
 ROT_DEG=-1.0
 th_v=math.radians(ROT_DEG); cos_t=math.cos(th_v); sin_t=math.sin(th_v)
 cxv=(ANKLE_X+TIP_X)/2.0; cyv=0.0
@@ -87,13 +87,28 @@ def point_in_poly(px,py):
         j=i
     return inside
 
+# COLLAR-EAR GAP FILL: collar wraps a bit further into the V (symmetric margin).
+# Reverted from asymmetric attempt that wrecked the foot band.
+EAR_MARGIN = 0.0013   # collar wraps 1.3mm into the V (was 1.2mm; +0.1mm to close the last tiny gap to the rails)
+left_collar =[rot(float(x), float(cy_sx[i]-vw_sx[i]+EAR_MARGIN)) for i,x in enumerate(sx)]
+right_collar=[rot(float(x), float(cy_sx[i]+vw_sx[i]-EAR_MARGIN)) for i,x in enumerate(sx)]
+poly_collar = left_collar + list(reversed(right_collar))
+def point_in_poly_collar(px,py):
+    inside=False; n=len(poly_collar); j=n-1
+    for i in range(n):
+        xi,yi=poly_collar[i]; xj,yj=poly_collar[j]
+        if ((yi>py)!=(yj>py)) and (px<(xj-xi)*(py-yi)/((yj-yi) or 1e-12)+xi):
+            inside=not inside
+        j=i
+    return inside
+
 # --- bands (meters) ---
 STRIPS = [
-    (-0.00980,  0.0032, 'cuff'),   # top: ~13mm wide (was 8.8), anchored at ankle opening, extends toward foot
-    ( 0.02325, 0.03675, 'foot'),  # bottom: ~13.5mm wide (was 9.0), raised toward ankle by 4.5mm (50% of old width); center now at waist->bulge transition (x=30)
+    (-0.01150,  0.0032, 'cuff'),   # cuff band: 1mm extension past the ankle rim (was -13.0 = 2mm, too far)
+    ( 0.02325, 0.03675, 'foot'),  # bottom: ~13.5mm wide, center at waist->bulge transition (x=30)
 ]
 
-WALL         = 0.00150   # 1.5mm solid wall (caps + embeds the outer lattice tubes, peaks ~0.96mm)
+WALL         = 0.00150   # 1.5mm solid wall (caps + embeds the outer lattice tubes). REVERTED from 1.8 -- user did not ask for the thickening; the V band carries the gradient thickening instead.
 NTHETA_DENSE = 144       # angular samples per cross-section (every 2.5deg)
 M_COLS       = 48        # resampled points per cross-section (fixed -> clean quads)
 RAY_MAX      = 0.06      # 60mm reach from centerline
@@ -109,8 +124,10 @@ def cross_section_arc(x):
         loc, nrm, idx, dist = bvh.ray_cast(origin, (0.0, math.cos(th), math.sin(th)), RAY_MAX)
         if loc is None:
             continue
-        # skip the dorsal V patch (uncut shell still has a top here; the tongue needs the gap)
-        if point_in_poly(loc.x, loc.y) and nrm.z > DORSAL_Z:
+        # skip the dorsal V patch (uncut shell still has a top here; the tongue needs the gap).
+        # Use the COLLAR polygon (shrunk by EAR_MARGIN) so the band wraps further into the V,
+        # filling the gap to the V rail. Sole (z<0) is never trimmed.
+        if point_in_poly_collar(loc.x, loc.y) and nrm.z > DORSAL_Z:
             continue
         hits.append((th, np.array([loc.x, loc.y, loc.z], dtype=float)))
     if len(hits) < 8:
@@ -124,6 +141,40 @@ def cross_section_arc(x):
     i_gap = max(range(n), key=lambda i: gaps[i])
     order = [(i_gap+1+k) % n for k in range(n)]
     return [hits[i][1] for i in order]
+
+def extend_arc_to_rail(arc, x):
+    """Extend the arc's two endpoints to the V rail inner edge at THIS x. Near the
+    open ankle cuff the rays miss (no surface) so the arc falls short of the V edge
+    -- leaving a gap between the collar and the V rail (the missing rectangle,
+    esp. on the left where the surface ends earlier). Extrapolate each end along
+    its tangent to reach the V edge +/- EAR_MARGIN (= the rail inner edge)."""
+    if arc is None or len(arc) < 4:
+        return arc
+    cyy = cy_at(x)
+    _, yt_left  = rot(x, cyy - v_width(x) + EAR_MARGIN)   # target Y, left (more negative)
+    _, yt_right = rot(x, cyy + v_width(x) - EAR_MARGIN)   # target Y, right (more positive)
+    def _ext(pt_end, yt, go_neg):
+        # Place a new point at the target Y (the V rail inner edge), keeping the endpoint's
+        # X and Z. We DON'T extrapolate along the arc tangent because at the dorsal top the
+        # arc curves back toward the centerline (tangent points +Y at the left end), so a
+        # tangent extension would go the wrong way. Direct placement bridges the gap cleanly.
+        if go_neg and pt_end[1] <= yt: return None   # already reached/past target
+        if (not go_neg) and pt_end[1] >= yt: return None
+        return np.array([pt_end[0], yt, pt_end[2]])
+    a0, a1, am1, am2 = arc[0], arc[1], arc[-1], arc[-2]
+    pre = app = None
+    if a0[1] < am1[1]:
+        nl = _ext(a0, yt_left, True);  nr = _ext(am1, yt_right, False)
+        if nl is not None: pre = nl
+        if nr is not None: app = nr
+    else:
+        nl = _ext(am1, yt_left, True);  nr = _ext(a0, yt_right, False)
+        if nl is not None: app = nl
+        if nr is not None: pre = nr
+    out = list(arc)
+    if pre is not None: out = [pre] + out
+    if app is not None: out = out + [app]
+    return out
 
 def resample_arc(points, M):
     """Resample an ordered open polyline to M evenly arc-length-spaced points."""
@@ -143,10 +194,29 @@ for (xlo, xhi, label) in STRIPS:
     nX = max(4, int(round((xhi-xlo)/0.0015)) + 1)
     xs = np.linspace(xlo, xhi, nX)
     rows = []   # list of bmv-lists (one per valid station)
+    # First pass: collect all valid arcs (stations where the surface exists).
+    valid = []   # list of (x, arc)
     for x in xs:
         arc = cross_section_arc(float(x))
+        if arc is not None:
+            valid.append((float(x), arc))
+    if not valid:
+        continue
+    # The pristine mesh is OPEN at the ankle cuff (x < ~-8.6mm = no surface).
+    # To extend the cuff band over the ankle top, extrapolate the cross-section
+    # backward in -X for any station that missed: use the NEAREST valid arc, shifted
+    # in -X (linear extrapolation of the arc centroid between the two surrounding
+    # valid stations so the band follows the leg's taper, not a flat copy).
+    valid_x = np.array([v[0] for v in valid])
+    for x in xs:
+        x = float(x)
+        arc = cross_section_arc(x)
         if arc is None:
-            print('    WARN: strip %s x=%.1fmm -> no arc' % (label, x*1000)); continue
+            j = int(np.argmin(np.abs(valid_x - x)))
+            base_x, base_arc = valid[j]
+            base_centroid = np.mean(base_arc, axis=0)
+            arc = [p + np.array([x - base_centroid[0], 0.0, 0.0]) for p in base_arc]
+        arc = extend_arc_to_rail(arc, x)
         rp = resample_arc(arc, M_COLS)
         rows.append([bm.verts.new((float(p[0]), float(p[1]), float(p[2]))) for p in rp])
     nf = 0
@@ -167,10 +237,14 @@ bm.to_mesh(out_mesh); bm.free(); out_mesh.update()
 obj = bpy.data.objects.new('Ankle_Reinforce', out_mesh)
 bpy.context.collection.objects.link(obj); obj.parent = boot
 
-# --- Solidify outward (caps + embeds the outer lattice into a solid band) ---
+# --- Solidify spanning BOTH lattice layers: outer face at +1.5mm (unchanged, covers outer
+# lattice + matches V band), inner face at -1.0mm (covers the INNER lattice layer, into
+# the cavity toward the ankle). thickness=2.5, offset=0.2 -> outer=+1.5, inner=-1.0.
+# Previously offset=1.0 (all outward) left the inner lattice tube ends exposed at the
+# ankle. Extra thickness now goes INWARD (toward the ankle/cavity) per request.
 mod = obj.modifiers.new('Solidify', 'SOLIDIFY')
-mod.thickness = WALL
-mod.offset = 1.0                # grow fully outward from the surface
+mod.thickness = 0.00250
+mod.offset = 0.20               # outer +1.5mm, inner -1.0mm (spans both lattice layers)
 mod.use_even_offset = True
 mod.use_quality_normals = True
 
