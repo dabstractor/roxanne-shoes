@@ -247,19 +247,27 @@ def build_side(side, tip_bottom, tip_top):
         nonlocal nf
         try: bm.faces.new(q); nf+=1
         except ValueError: pass
+    # WINDING: the two arms are geometric mirrors (outward_dir flips inner/outer physical
+    # sides). Identical quad winding therefore produces OUTWARD normals on one arm and
+    # INWARD (inside-out) normals on the other. The +1 arm was entirely inside-out
+    # (top faces pointing -Z), which made that whole side of the V drop out of the slicer.
+    # Reverse the winding for the +1 arm so both arms' normals point outward.
+    def quad(a,b,c,d): return (a,b,c,d) if side<0 else (d,c,b,a)
     for k in range(len(rows)-1):
         a=rows[k]; b=rows[k+1]
         if a[0]=='seg' and b[0]=='seg':
             _,bi0,bo0,ti0,to0=a; _,bi1,bo1,ti1,to1=b
-            mk((bi0,bo0,bo1,bi1)); mk((ti0,to0,to1,ti1))
-            mk((bo0,to0,to1,bo1)); mk((ti0,bi0,bi1,ti1))
+            mk(quad(bi0,bo0,bo1,bi1)); mk(quad(ti0,to0,to1,ti1))
+            mk(quad(bo0,to0,to1,bo1)); mk(quad(ti0,bi0,bi1,ti1))
         elif a[0]=='seg' and b[0]=='tip':
             _,bi0,bo0,ti0,to0=a
             # close to the shared tip: bottom tri, top tri, outer wall quad, inner wall quad
-            mk((bi0,bo0,tip_bottom))            # bottom cap (triangle to surface tip)
-            mk((ti0,to0,tip_top))               # top cap (triangle to top tip -> flat, no dip)
-            mk((bo0,to0,tip_top,tip_bottom))    # outer wall to tip
-            mk((ti0,bi0,tip_bottom,tip_top))    # inner wall to tip
+            if side<0:
+                mk((bi0,bo0,tip_bottom)); mk((ti0,to0,tip_top))
+                mk((bo0,to0,tip_top,tip_bottom)); mk((ti0,bi0,tip_bottom,tip_top))
+            else:
+                mk((bo0,bi0,tip_bottom)); mk((to0,ti0,tip_top))
+                mk((to0,bo0,tip_bottom,tip_top)); mk((bi0,ti0,tip_top,tip_bottom))
     return nf,len(rows)
 
 nL=build_side(-1, tip_bottom, tip_top); nR=build_side(+1, tip_bottom, tip_top)
