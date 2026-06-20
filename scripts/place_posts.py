@@ -204,7 +204,11 @@ zmin=verts_mm[:,2].min(); zmax=verts_mm[:,2].max()
 # reach DOWN into the band so the tilted base disk still makes full contact everywhere.
 ORIGINAL_HEIGHT_MM = 4.5
 EXTENSION_MM = max(0.0, (zmax - zmin) - ORIGINAL_HEIGHT_MM)
-bc=verts_mm[verts_mm[:,2]<(zmin+0.05)]; bcx=bc[:,0].mean(); bcy=bc[:,1].mean()
+# Center XY on the CYLINDER BODY axis (verts near zmax), NOT the extension bottom (zmin).
+# The extension can be asymmetric (user lengthens one side to make contact) -> lowest-verts
+# centroid shifts off the cylinder axis and drags the whole post sideways (~4mm). The
+# cylinder body / threaded top is stable regardless of extension shape.
+bc=verts_mm[verts_mm[:,2]>(zmax-0.5)]; bcx=bc[:,0].mean(); bcy=bc[:,1].mean()
 for nm in list(bpy.data.objects.keys()):
     if nm.startswith('Post_'): bpy.data.objects.remove(bpy.data.objects[nm],do_unlink=True)
 for mn in list(bpy.data.meshes.keys()):
@@ -215,7 +219,7 @@ M_pre=(Matrix.Translation((-bcx*0.001,-bcy*0.001,-zmin*0.001)) @ Matrix.Scale(0.
 Z_LIFT = 0.0005   # +0.5mm world-Z lift (running tally: +0.1 base, +0.5 test/visible, settled +0.3, +0.1 = 0.5 total; clears V-band/collar from thread holes)
 print('Post mesh: zmin=%.3f zmax=%.3f  detected EXTENSION=%+.3fmm  Z_LIFT=%+.3fmm'%(
     zmin,zmax,EXTENSION_MM,Z_LIFT*1000))
-def make_post(base_pos,normal,name):
+def make_post(base_pos,normal,name,roll_deg=0.0):
     q=Vector((0,0,1)).rotation_difference(Vector(tuple(normal)))
     R=q.to_matrix().to_4x4()
     # M_pre anchors local-z=zmin -> 0. The ORIGINAL BASE sits at local-z=EXTENSION_MM, which in
@@ -225,13 +229,20 @@ def make_post(base_pos,normal,name):
     e=EXTENSION_MM*0.001
     shift=Vector((-e*normal[0], -e*normal[1], -e*normal[2]))
     T=Matrix.Translation(Vector(tuple(base_pos)) + shift + Vector((0.0,0.0,Z_LIFT)))
+    # ROLL about the cylinder's own axis (local Z). Composed between R (axis-align) and M_pre
+    # so the cylinder body -- which is symmetric about local Z -- stays exactly in place;
+    # only the ASYMMETRIC extension flips to the other side. The +Y posts need 180deg so their
+    # extension points outward (+Y, closing the outer gap) like the -Y posts do by default.
+    R_roll = Matrix.Rotation(math.radians(roll_deg), 4, 'Z')
     obj=bpy.data.objects.new(name,pmesh)
-    bpy.context.collection.objects.link(obj); obj.matrix_world=T@R@M_pre; obj.parent=boot
+    bpy.context.collection.objects.link(obj); obj.matrix_world=T@R@R_roll@M_pre; obj.parent=boot
     return obj
 print('\n=== POST OBJECTS ===')
 for base_pos,normal,name in placements:
-    o=make_post(base_pos,normal,name)
-    print('  %-16s base=(%.2f,%.2f,%.2f)mm N=(%+.3f,%+.3f,%+.3f)'%(
-        o.name,base_pos[0]*1000,base_pos[1]*1000,base_pos[2]*1000,normal[0],normal[1],normal[2]))
+    # +Y posts (_R): roll 180deg so the asymmetric extension points outward (closes the gap).
+    # -Y posts (_L): no roll -- extension already points outward by default.
+    roll = 180.0 if name.endswith('_R') else 0.0
+    o=make_post(base_pos,normal,name,roll_deg=roll)
+    print('  %-16s base=(%.2f,%.2f,%.2f)mm N=(%+.3f,%+.3f,%+.3f) roll=%.0f'%( o.name,base_pos[0]*1000,base_pos[1]*1000,base_pos[2]*1000,normal[0],normal[1],normal[2],roll))
 bpy.context.view_layer.update()
 print('\nDONE.')

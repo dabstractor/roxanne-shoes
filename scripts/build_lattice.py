@@ -97,8 +97,11 @@ for e in mesh.edges:
 print('TEAR CHECK: edges with >0.5 jump:', _n_tears, '(MUST be 0 on uncut mesh; was 309 on cut mesh)')
 
 # KNOBS
-N_LINES=56; SWEEP=0.50; RIB_RADIUS=0.00051; OFFSET_OUT=0.000448; OFFSET_IN=0.000448
-SMOOTH_ITERS=6; TOE_SCALE=2.55
+N_LINES=56; SWEEP=0.50; RIB_RADIUS=0.000459; OFFSET_OUT=0.000448; OFFSET_IN=0.000448
+# RIB_RADIUS 0.51->0.459mm (-10%) for harder TPU. OFFSET unchanged (sole-touch guarantee).
+SMOOTH_ITERS=6; TOE_SCALE=2.27
+# TOE_SCALE 2.55->2.27 so the toe (thickest part of the gradient) drops ~20% total
+# (0.51*2.55=1.30mm -> 0.459*2.27=1.04mm), 10% beyond the base reduction.
 P=N_LINES; T=SWEEP*N_LINES
 
 def interp_normal(i,j,t):

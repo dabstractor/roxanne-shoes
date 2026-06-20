@@ -104,8 +104,8 @@ def point_in_poly_collar(px,py):
 
 # --- bands (meters) ---
 STRIPS = [
-    (-0.01150,  0.0032, 'cuff'),   # cuff band: 1mm extension past the ankle rim (was -13.0 = 2mm, too far)
-    ( 0.02325, 0.03675, 'foot'),  # bottom: ~13.5mm wide, center at waist->bulge transition (x=30)
+    (-0.01150,  0.0009, 'cuff'),   # cuff band: MEASURED 2.5mm reduction at +X (footward) edge (eval edge 3.75->1.18mm). xhi=0.9 + Solidify flare ->1.18. Was xhi=3.2.
+    ( 0.02425, 0.03575, 'foot'),  # foot band: trimmed 1mm off EACH end (post at x=30 stays dead-center). Was (23.25, 36.75).
 ]
 
 WALL         = 0.00150   # 1.5mm solid wall (caps + embeds the outer lattice tubes). REVERTED from 1.8 -- user did not ask for the thickening; the V band carries the gradient thickening instead.
@@ -191,8 +191,14 @@ def resample_arc(points, M):
 bm = bmesh.new()
 total_v = 0; total_f = 0
 for (xlo, xhi, label) in STRIPS:
-    nX = max(4, int(round((xhi-xlo)/0.0015)) + 1)
-    xs = np.linspace(xlo, xhi, nX)
+    # FIXED 1.5mm station grid anchored at xlo (the ankle/-X end). Trimming the +X end
+    # only drops trailing stations -> the ankle stations stay byte-identical, so the
+    # print-plane extension (extrapolated cross-sections + Solidify boundary) is trim-
+    # independent. Then land the +X end EXACTLY at xhi (one final off-grid station if
+    # needed) so the measured trim isn't quantized to 1.5mm steps.
+    xs = np.arange(xlo, xhi, 0.0015)
+    if xs[-1] < xhi - 1e-9:
+        xs = np.append(xs, xhi)
     rows = []   # list of bmv-lists (one per valid station)
     # First pass: collect all valid arcs (stations where the surface exists).
     valid = []   # list of (x, arc)

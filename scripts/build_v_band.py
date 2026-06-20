@@ -95,7 +95,9 @@ def rot(x,y):
 # band params
 W_IN=0.0012; W_OUT=0.0020; WALL=0.00165
 ANKLE_END_X=-0.0085   # stop where surface exists (no extrapolation -> no jog). Collar ears bridge to the cuff band.
-OVERLAP_X=[(-0.0115,0.0032),(0.0232,0.0368)]
+# overlap ranges must MATCH the (possibly trimmed) Ankle_Reinforce STRIPS extents, else
+# reinforce_top_z() raycasts past the band end and the V band won't hide the band ends.
+OVERLAP_X=[(-0.0115,0.0012),(0.02425,0.03575)]
 def in_overlap(x):
     return any(lo<=x<=hi for lo,hi in OVERLAP_X)
 
