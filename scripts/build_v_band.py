@@ -191,20 +191,29 @@ def width_scale_at(x):
     return w / full   # caller multiplies by (W_IN, W_OUT)
 
 # shared convergence point (both arms meet HERE -> single clean point, no asymmetry).
-# Probe z+normal ROBUSTLY by averaging several points near the tip along the
-# centerline -- a single raycast at the exact mesh edge (x=TIP_X) hits low/side
-# geometry (returned z=13.14 vs ~15 dorsal) and sank the tip into a notch.
+# Anchor the tip on the REAL rail surface. The old probes sampled cy_at() = the CENTERLINE
+# y, so surf() aimed at the dorsal RIDGE PEAK (~z14.5). But the tip sits on the V RAIL,
+# whose surface is ~1mm lower (~z13.5). Result: tip_bottom floated ~1mm above the surface,
+# tip_top ~2.8mm, and the final cap triangle jutted into space (the visible spike).
+# Fix: probe the INNER-edge surface (offset into the V gap, like the station bottoms do
+# -- those reliably hit z~13.5 at gap=0) at the last few stations of each arm.
 conv = rot(TIP_X, cy_at(TIP_X))
-_probe_pts = [rot(TIP_X - dx, cy_at(TIP_X - dx)) for dx in (0.0040, 0.0025, 0.0012)]
-_zs=[]; _ns=[]
-for _px,_py in _probe_pts:
-    _r = surf(_px, _py)
-    if _r is not None:
-        _zs.append(_r[2]); _ns.append(np.array(_r[3:6]))
-if not _zs:
-    _r = surf(conv[0], conv[1]); _zs=[_r[2]]; _ns=[np.array(_r[3:6])]
-tip_base_z = float(np.mean(_zs))
-tip_nrm = sum(_ns) / (np.linalg.norm(sum(_ns)) or 1.0)
+_tip_probe_zs=[]; _tip_probe_ns=[]
+for side in (-1, +1):
+    pts=edges[side]; n=len(pts)
+    for i in range(n-4, n-1):   # last 3 stations before the tip marker
+        ex,ey=pts[i]
+        ox,oy=outward_dir(pts,i,side)
+        ws=width_scale_at(ex)
+        ix,iy=ex-ox*(W_IN*ws), ey-oy*(W_IN*ws)   # inner edge = reliable rail surface
+        _r=surf(ix,iy)
+        if _r is not None:
+            _tip_probe_zs.append(_r[2]); _tip_probe_ns.append(np.array(_r[3:6]))
+if _tip_probe_zs:
+    tip_base_z=float(np.mean(_tip_probe_zs))
+    tip_nrm=sum(_tip_probe_ns)/(np.linalg.norm(sum(_tip_probe_ns)) or 1.0)
+else:
+    _r=surf(conv[0], conv[1]); tip_base_z=_r[2]; tip_nrm=np.array(_r[3:6])
 
 bm=bmesh.new()
 # TWO tip verts: bottom (on surface) + top (surface + wall along normal). Using one
@@ -247,12 +256,12 @@ def build_side(side, tip_bottom, tip_top):
         nonlocal nf
         try: bm.faces.new(q); nf+=1
         except ValueError: pass
-    # WINDING: the two arms are geometric mirrors (outward_dir flips inner/outer physical
-    # sides). Identical quad winding therefore produces OUTWARD normals on one arm and
-    # INWARD (inside-out) normals on the other. The +1 arm was entirely inside-out
-    # (top faces pointing -Z), which made that whole side of the V drop out of the slicer.
-    # Reverse the winding for the +1 arm so both arms' normals point outward.
-    def quad(a,b,c,d): return (a,b,c,d) if side<0 else (d,c,b,a)
+    # WINDING: build both arms with IDENTICAL winding. The arms are geometric mirrors,
+    # so identical winding produces OUTWARD normals on one arm and INWARD on the other.
+    # Rather than fragile per-arm reversal (which created a non-manifold conflict at the
+    # shared tip and made the slicer render BOTH sides black), we build identically here
+    # and fix normals globally afterward with a robust centerline-relative check.
+    def quad(a,b,c,d): return (a,b,c,d)
     for k in range(len(rows)-1):
         a=rows[k]; b=rows[k+1]
         if a[0]=='seg' and b[0]=='seg':
@@ -262,16 +271,32 @@ def build_side(side, tip_bottom, tip_top):
         elif a[0]=='seg' and b[0]=='tip':
             _,bi0,bo0,ti0,to0=a
             # close to the shared tip: bottom tri, top tri, outer wall quad, inner wall quad
-            if side<0:
-                mk((bi0,bo0,tip_bottom)); mk((ti0,to0,tip_top))
-                mk((bo0,to0,tip_top,tip_bottom)); mk((ti0,bi0,tip_bottom,tip_top))
-            else:
-                mk((bo0,bi0,tip_bottom)); mk((to0,ti0,tip_top))
-                mk((to0,bo0,tip_bottom,tip_top)); mk((bi0,ti0,tip_top,tip_bottom))
+            mk((bi0,bo0,tip_bottom)); mk((ti0,to0,tip_top))
+            mk((bo0,to0,tip_top,tip_bottom)); mk((ti0,bi0,tip_bottom,tip_top))
     return nf,len(rows)
 
 nL=build_side(-1, tip_bottom, tip_top); nR=build_side(+1, tip_bottom, tip_top)
 bm.normal_update()
+
+# --- ROBUST NORMAL FIX (canonical Blender tool, not hand-rolled dot-products) ---
+# My earlier per-face 'away from centerline' check was unreliable: inner walls face the V
+# gap (toward centerline) and got false-flagged. Use Blender's recalc_face_normals instead
+# -- it propagates consistent normals across shared edges (topologically correct), then we
+# verify against ONE known reference (a top cap must point +Z) and flip the whole shell
+# if recalc chose the global inside-out direction. Deterministic + reliable.
+import bmesh as _bm
+_bm.ops.recalc_face_normals(bm, faces=bm.faces)
+# find a top-cap reference: highest-z face centroid (a top face on the band's upper surface)
+_top=max(bm.faces, key=lambda f: f.calc_center_median().z)
+_nrm=_top.normal
+# want top faces to point +Z (outward/up). If recalc made them -Z, flip everything.
+if _nrm.z < 0:
+    _bm.ops.reverse_faces(bm, faces=bm.faces)
+    _flipped='all (recalc chose inside-out, flipped to +Z-up)'
+else:
+    _flipped='none (recalc already +Z-up)'
+bm.normal_update()
+print('  normal-fix: recalc_face_normals + verify -> %s'%_flipped)
 me=bpy.data.meshes.new('V_Band'); bm.to_mesh(me); bm.free(); me.update()
 obj=bpy.data.objects.new('V_Band',me); bpy.context.collection.objects.link(obj); obj.parent=boot
 ar_eo.to_mesh_clear()
