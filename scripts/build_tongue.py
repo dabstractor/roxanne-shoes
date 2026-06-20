@@ -87,10 +87,17 @@ MAX_DIVE=0.0040       # 4mm dip in the middle (arc toward centerline), returns t
 HATCH_SPACING=0.0045   # ~4.5mm between parallel lines
 RIB_RADIUS=0.00055     # 0.55mm ribbon
 
+# tongue half-widths (m). Ankle end narrowed 0.50mm (15.6->15.1) to clear inner-lattice
+# binding on the -Y side near x=0..6mm (the tongue side-edge was conformal to an inner
+# lattice rib -> fused at ~0mm gap; a rigid nudge can't lift a conformal contact, only
+# narrowing works). Linear interp to UNCHANGED tip (6.0mm) so the front attachment embed
+# is preserved. Result: -Y side ~0.1mm, +Y side ~0.3mm gap to Lattice_INNER (print support).
+HW_ANKLE = 0.0151   # was 0.0156 (120% of 13mm); -0.50mm to clear the binding rib
+HW_TIP   = 0.0060   # 120% width: tip half 5.0->6.0mm (unchanged)
 def hw_at(x):
-    if x> TIP_X:  return 0.0060   # 120% width: tip half 5.0->6.0mm
-    if x<ANKLE_X: return 0.0156   # 120% width: ankle half 13.0->15.6mm
-    s=(x-ANKLE_X)/(TIP_X-ANKLE_X); return 0.0156+(0.0060-0.0156)*s
+    if x> TIP_X:  return HW_TIP
+    if x<ANKLE_X: return HW_ANKLE
+    s=(x-ANKLE_X)/(TIP_X-ANKLE_X); return HW_ANKLE+(HW_TIP-HW_ANKLE)*s
 
 def sstep(a,b,x):
     t=max(0.0,min(1.0,(x-a)/(b-a) if b!=a else 0.0)); return t*t*(3-2*t)

@@ -8,8 +8,14 @@ project = '/home/dustin/Documents/Models/Roxanne Shoes/'
 # unhide boot so we can manipulate (but we won't export it)
 bpy.data.objects['left boot cutout meters'].hide_set(False)
 
-# objects to export: lattice + rims + tongue + ankle reinforcement (the actual printable geometry)
-curve_objs = [bpy.data.objects[n] for n in ('Lattice_OUTER','Lattice_INNER','V_Band','Tongue','Ankle_Reinforce')]
+# objects to export: lattice + rims + tongue + ankle reinforcement + 4 latch posts
+# (the actual printable geometry). Posts are linked mesh instances (Post_mesh) placed
+# by scripts/place_posts.py: 2 per reinforce collar straddling the V, 2.25mm near-edge
+# to the V cut edge (-> 12.5mm on-center, 4.5mm gap when V closes), base inset 0.25mm,
+# axis = true surface normal (toward-ankle tilt included).
+EXPORT_NAMES = ('Lattice_OUTER','Lattice_INNER','V_Band','Tongue','Ankle_Reinforce',
+                'Cuff_Upper_L','Cuff_Upper_R','Foot_Lower_L','Foot_Lower_R')
+curve_objs = [bpy.data.objects[n] for n in EXPORT_NAMES]
 
 print('=== SAFE EXPORT (working on copies, originals untouched) ===')
 copies = []
