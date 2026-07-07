@@ -81,7 +81,7 @@ bpy.data.objects['left boot cutout meters'].hide_set(True)
 - Generates two contour families: `f = P·phi_lift ± T·s_norm`, marched per-triangle, chained with **tolerant KDTree matching** (tol=6µm). Round-key hashing fragments lines (94% shards); KDTree is required.
 - Offsets each family along the surface normal: outer `+OFFSET_OUT`, inner `−OFFSET_IN` → two parallel layers that cross and fuse at crossings.
 - Per-point rib radius scales with gradient weight (`TOE_SCALE`) → toe ribs thicker and fuse into a solid block; ankle ribs thin (breathable).
-- **Cuff reinforcement**: rib radius is ALSO thickened in two X-bands (`CUFF_BANDS`, centered on the latch posts at x=−6.6mm and x=30mm) via a smooth `cuff_factor` bump. Peak `CUFF_SCALE=2.3` (+10% over the 2.1 average of 2.8 & 1.4 — fuses the collars into a solid strip, but less bulky than the original 2.8; between the bands the fades overlap into a gradually-thickening but mostly-unfused middle). The bump fades over `CUFF_BLEND` (30mm, ~10× the original) — a long gentle cone so movement stress spreads and won't snap at a layer line. Replaces `Ankle_Reinforce`.
+- **Cuff reinforcement**: rib radius is ALSO thickened in two X-bands (`CUFF_BANDS`, centered on the cuff posts at x=−4.0mm and the foot posts at x=30mm) via a smooth `cuff_factor` bump. Peak `CUFF_SCALE=2.3` (+10% over the 2.1 average of 2.8 & 1.4 — fuses the collars into a solid strip, but less bulky than the original 2.8; between the bands the fades overlap into a gradually-thickening but mostly-unfused middle). The bump fades over `CUFF_BLEND` (30mm, ~10× the original) — a long gentle cone so movement stress spreads and won't snap at a layer line. Replaces `Ankle_Reinforce`.
 
 ### Step 2 — `cut_v_through_lattice.py`
 - Cuts the V tongue opening using **bisect-planes** (clean edges). Booleans on this open shell fail (they cut the sole instead of the top).
@@ -155,7 +155,7 @@ TOE_SCALE = 2.27      # rib radius multiplier at toe (fuses crossings into a sol
 
 # CUFF FUSION -- replaces the solid Ankle_Reinforce bands:
 CUFF_HALF_WIDTH=0.0035  # 3.5mm -> 7mm-wide core
-CUFF_BANDS = [(-0.0101,-0.0031),(0.0265,0.0335)]  # centered on latch posts x=-6.6mm, x=30mm
+CUFF_BANDS = [(-0.0075,-0.0005),(0.0265,0.0335)]  # centered on cuff posts x=-4.0mm (moved +X to clear Ankle_Rim) and foot posts x=30mm
 CUFF_SCALE = 2.3        # peak rib-radius multiplier. +10% over the 2.1 average (of 2.8 & 1.4). >1.7 so the collars FUSE into a solid strip.
 CUFF_BLEND = 0.0300     # fade half-width (m): ~10x the original 3mm -> long gradual cone, spreads movement stress (resists layer-line snapping). At 30mm the 2 bands merge into one reinforced zone; ~0.018 keeps them distinct.
 ```

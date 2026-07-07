@@ -112,8 +112,8 @@ SMOOTH_ITERS=6; TOE_SCALE=2.27
 # still root in the fused strip. Tunable: narrow these (CUFF_HALF_WIDTH) or dial the
 # fusion (CUFF_SCALE) after a test print. See PROJECT_NOTES "Cuff fusion".
 CUFF_HALF_WIDTH=0.0035   # 3.5mm -> 7mm-wide fused core (was ~12mm solid band)
-CUFF_BANDS=[(-0.0066-CUFF_HALF_WIDTH, -0.0066+CUFF_HALF_WIDTH),   # near-ankle strip, on post x=-6.6mm
-            ( 0.0300-CUFF_HALF_WIDTH,  0.0300+CUFF_HALF_WIDTH)]   # above-foot strip, on post x=30.0mm
+CUFF_BANDS=[(-0.0040-CUFF_HALF_WIDTH, -0.0040+CUFF_HALF_WIDTH),   # near-ankle strip, centered on cuff posts x=-4.0mm (posts moved +X to clear the Ankle_Rim)
+            ( 0.0300-CUFF_HALF_WIDTH,  0.0300+CUFF_HALF_WIDTH)]   # above-foot strip, on foot posts x=30.0mm
 CUFF_SCALE=2.3          # peak rib-radius multiplier at band centers. +10% over 2.1. >1.7 so the tubes FUSE into a solid strip.
 CUFF_BLEND=0.0300       # fade half-width (m): radius ramps 1->CUFF_SCALE->1 across this. ~10x the original 3mm -> a long gradual cone that spreads movement stress (resists snapping at layer lines). NB at 30mm the 2 bands' fades overlap into one reinforced zone; use ~0.018 to keep them as 2 distinct cones.
 def cuff_factor(x):

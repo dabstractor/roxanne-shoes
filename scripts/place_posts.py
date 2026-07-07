@@ -148,6 +148,7 @@ def place_pair(x0, label):
     PEL,_=true_v_edge(x0,'L'); PER,_=true_v_edge(x0,'R')
     out=[]
     for side, PE, arcwalk in [('L',PEL,a),('R',PER,list(reversed(a)))]:
+        xoff = SIDE_X_OFFSET.get(side, 0.0)   # per-side X nudge (R posts shifted toward ankle)
         poly_line=[PE]+arcwalk
         PC=walk_along(poly_line, CENTER_WALK)         # post center on surface, 2.25mm near-edge to V (UNCHANGED)
         # Surface normal at PC -> used ONLY for the base inset depth (0.25mm into the band
@@ -157,6 +158,7 @@ def place_pair(x0, label):
         N_normal=np.array([nrm2.x,nrm2.y,nrm2.z]); N_normal=N_normal/(np.linalg.norm(N_normal) or 1.0)
         if np.dot(N_normal, PC-C) < 0: N_normal=-N_normal
         base=PC+(SOLIDIFY_OUTER-INSET)*N_normal      # inset 0.25mm into band along surface normal
+        base=base+np.array([xoff,0.0,0.0])          # apply per-side X nudge (R posts toward ankle)
         # AXIS = RAIL RADIAL (PE - C). Zero X-component; YZ angle = rail angle.
         # Why: the V closes by rotating each collar half about the longitudinal (X) axis to
         # bring its rail to the top center (90deg). X-rotation preserves the X-component of
@@ -179,6 +181,8 @@ def place_pair(x0, label):
             PC[0]*1000,PC[1]*1000,PC[2]*1000, NR[0],NR[1],NR[2], base[0]*1000,base[1]*1000,base[2]*1000))
         out.append((base,NR,label+'_'+side))
     return out
+
+SIDE_X_OFFSET = {'L': 0.0, 'R': -0.00091}   # +Y (R) posts shifted -0.91mm in X (toward ankle) per request, to match the -Y side's distance from the ankle opening
 
 print('=== POST PLACE (axis = rail-radial -> PARALLEL when V closes; position unchanged) ===')
 placements=[]
