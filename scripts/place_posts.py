@@ -24,7 +24,7 @@ Spec (per user):
   - +Z_LIFT (0.1mm world-Z): keeps the V-band material from protruding into the
     threaded top once the posts lean toward the V.
   - Threaded top side faces AWAY from the centerline (along +axis).
-  - UPPER (cuff collar): 1/3 down cuff band x[-11.5..3.2]mm from -X -> x=-6.6mm.
+  - UPPER (cuff collar): x=-4.0mm (moved +2.6mm from -6.6 to clear the Ankle_Rim; 8mm-wide posts were protruding through it).
   - LOWER (foot collar): dead center foot band x[23.25..36.75]mm -> x=30.0mm.
 
 BOTTOM EXTENSION (user extends Post.stl bottom by a solid cylinder; thread TOP / zmax
@@ -182,7 +182,7 @@ def place_pair(x0, label):
 
 print('=== POST PLACE (axis = rail-radial -> PARALLEL when V closes; position unchanged) ===')
 placements=[]
-placements+=place_pair(-0.0066,'Cuff_Upper')
+placements+=place_pair(-0.0040,'Cuff_Upper')   # was -6.6; moved +2.6mm to clear the Ankle_Rim (8mm-wide posts were protruding through it). Still on the fused cuff core [-10.1,-3.1].
 placements+=place_pair( 0.0300,'Foot_Lower')
 
 # ---------- build post mesh + 4 linked instances ----------

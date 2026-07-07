@@ -102,6 +102,29 @@ N_LINES=56; SWEEP=0.50; RIB_RADIUS=0.000459; OFFSET_OUT=0.000448; OFFSET_IN=0.00
 SMOOTH_ITERS=6; TOE_SCALE=2.27
 # TOE_SCALE 2.55->2.27 so the toe (thickest part of the gradient) drops ~20% total
 # (0.51*2.55=1.30mm -> 0.459*2.27=1.04mm), 10% beyond the base reduction.
+
+# ===== CUFF FUSION (replaces the stiff solid Ankle_Reinforce bands) =====
+# The solid cuff bands were too stiff AND the lattice sheared off at the hard band/
+# lattice junction. Instead, HEAVILY thicken the ribs inside two NARROW X-bands so the
+# lattice fuses into a thin solid strip where the cuffs used to be. The radius FADES
+# smoothly in/out over CUFF_BLEND -> no hard junction -> nothing for stress to shear
+# at. Bands are centered on the latch-post X positions (x=-6.6mm, x=30mm) so the posts
+# still root in the fused strip. Tunable: narrow these (CUFF_HALF_WIDTH) or dial the
+# fusion (CUFF_SCALE) after a test print. See PROJECT_NOTES "Cuff fusion".
+CUFF_HALF_WIDTH=0.0035   # 3.5mm -> 7mm-wide fused core (was ~12mm solid band)
+CUFF_BANDS=[(-0.0066-CUFF_HALF_WIDTH, -0.0066+CUFF_HALF_WIDTH),   # near-ankle strip, on post x=-6.6mm
+            ( 0.0300-CUFF_HALF_WIDTH,  0.0300+CUFF_HALF_WIDTH)]   # above-foot strip, on post x=30.0mm
+CUFF_SCALE=2.3          # peak rib-radius multiplier at band centers. +10% over 2.1. >1.7 so the tubes FUSE into a solid strip.
+CUFF_BLEND=0.0300       # fade half-width (m): radius ramps 1->CUFF_SCALE->1 across this. ~10x the original 3mm -> a long gradual cone that spreads movement stress (resists snapping at layer lines). NB at 30mm the 2 bands' fades overlap into one reinforced zone; use ~0.018 to keep them as 2 distinct cones.
+def cuff_factor(x):
+    # smooth bump in [0,1]: 1.0 inside a band, fading to 0 over CUFF_BLEND beyond each edge.
+    best=0.0
+    for (lo,hi) in CUFF_BANDS:
+        if lo<=x<=hi: return 1.0
+        if x<lo: best=max(best, 1.0-_ss0(0.0,CUFF_BLEND,lo-x))
+        else:     best=max(best, 1.0-_ss0(0.0,CUFF_BLEND,x-hi))
+    return best
+
 P=N_LINES; T=SWEEP*N_LINES
 
 def interp_normal(i,j,t):
@@ -199,7 +222,8 @@ def make_curve(name, loops):
         sp=crv.splines.new('POLY'); sp.points.add(len(pts)-1)
         for i,p in enumerate(pts):
             co,idx,dist=kd_w.find((float(p[0]),float(p[1]),float(p[2])))
-            wt=w[idx]; rad=1.0+(TOE_SCALE-1.0)*wt
+            wt=w[idx]
+            rad=max(1.0+(TOE_SCALE-1.0)*wt, 1.0+(CUFF_SCALE-1.0)*cuff_factor(float(p[0])))
             sp.points[i].co=(float(p[0]),float(p[1]),float(p[2]),1.0)
             sp.points[i].radius=rad
     o=bpy.data.objects.new(name,crv); bpy.context.collection.objects.link(o); o.parent=boot

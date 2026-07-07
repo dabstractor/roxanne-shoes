@@ -1,6 +1,6 @@
 # Roxanne Shoes — 3D-Printed Dog Boot
 
-A 3D-printable dog boot (TPU, FDM) for a dog in a wheelchair who drags/knuckles her feet. The design puts the wear/thickness on the **dorsal (top) surface** over the toe knuckles rather than on the sole. The boot is a breathable **bi-helical lattice shell** with a hinged tongue flap for paw entry.
+A 3D-printable dog boot (TPU, FDM) for a dog in a wheelchair who drags/knuckles her feet. The design puts the wear/thickness on the **dorsal (top) surface** over the toe knuckles rather than on the sole. The boot is a breathable **bi-helical lattice shell** with an open V-entry on the dorsal top. (A hinged tongue flap originally covered the V opening, but it was **removed** — it pressed on the dog's paw and caused sores. The V opening is now left open; `build_tongue.py` is retained for reversal. See "Removed" under Status.)
 
 ---
 
@@ -26,12 +26,13 @@ Roxanne Shoes/
 ├── shoe_export.stl         # Print-ready export (pure lattice, no shell) ~46 MB
 ├── PROJECT_NOTES.md        # this file
 └── scripts/
-    ├── build_lattice.py            # STEP 1: lattice on uncut mesh
+    ├── build_lattice.py            # STEP 1: lattice on uncut mesh (+ cuff-fusion thickening)
     ├── cut_v_through_lattice.py    # STEP 2: cut V through mesh + trim lattice curves
     ├── build_rims.py               # STEP 3a: (beads REMOVED — cleanup only)
-    ├── build_ankle_reinforce.py    # STEP 3b: two solid bands (MUST run before build_v_band)
-    ├── build_v_band.py             # STEP 3c: V-trim band (snaps to the reinforce bands)
-    ├── build_tongue.py             # STEP 4: thatched tongue + double rim + rotation
+    ├── build_ankle_reinforce.py    # STEP 3b: solid cuff bands (DISABLED — replaced by cuff-fusion lattice in build_lattice.py; kept for reversal)
+    ├── build_v_band.py             # STEP 3c: V-trim band (reinforce-snap now OPTIONAL)
+    ├── build_tongue.py             # STEP 4: thatched tongue + double rim + rotation (DISABLED from print -- caused sores; kept for reversal. Not in EXPORT_NAMES.)
+    ├── build_ankle_rim.py          # STEP 6: tiny ~1mm finishing rim at the ankle opening (lattice terminates into it)
     ├── safe_export_stl.py          # NON-DESTRUCTIVE export (baseline, no flatten) — USE THIS
     ├── export_stl.py               # ⚠️ DESTRUCTIVE (old) — do not use
     ├── cut_v_curved.py             # OLD V-cut — superseded by cut_v_through_lattice.py
@@ -46,11 +47,12 @@ Roxanne Shoes/
 |---|---|---|
 | `left boot cutout meters` | MESH | Reference surface the lattice drapes on. **NOT printed.** Hidden from view. |
 | `left boot cutout BACKUP` | MESH | **Pristine uncut mesh** (28,982 verts). The sacred restore point — all build scripts regenerate from this. Never modify. |
-| `Lattice_OUTER` | CURVE | Outer family of bi-helical lattice (beveled tubes), 49 splines |
-| `Lattice_INNER` | CURVE | Inner family (offset inward), 50 splines |
+| `Lattice_OUTER` | CURVE | Outer family of bi-helical lattice (beveled tubes), 49 splines. Rib radius is also thickened in two X-bands (cuff reinforcement) with a long gradual fade (peak 1.4) where the old solid bands were. |
+| `Lattice_INNER` | CURVE | Inner family (offset inward), 50 splines. Same cuff-reinforcement fade as OUTER. |
 | `V_Band` | MESH | Flat V-trim band along both V edges (replaces the old Rims beads). Same technique as Ankle_Reinforce. |
-| `Tongue` | CURVE | Thatched crosshatch flap + double rounded rim, 54 splines |
-| `Ankle_Reinforce` | MESH | Two solid bands on the outer layer (cuff + above-foot) for lace/clip anchors. Raycast parametric grid + Solidify (spans both lattice layers). Built BEFORE V_Band (it's the snap target). |
+| `Ankle_Rim` | MESH | Tiny ~1mm finishing rim around the ankle opening so the lattice tubes terminate into something clean (and the ankle-down first layer is a tidy ring). Centerline-raycast cross-section (with V gap), Solidify 1mm centered. |
+| `Tongue` | CURVE | Thatched crosshatch flap + double rounded rim, 54 splines. **REMOVED from the print** (caused sores on the dog's feet). Object deleted from the live scene; regenerate with `build_tongue.py`. Not in `EXPORT_NAMES`. |
+| `Ankle_Reinforce` | MESH | Two solid bands on the outer layer (cuff + above-foot) for lace/clip anchors. **REMOVED from the print** — too stiff, and the lattice sheared off at the band/lattice junction. Replaced by fused-lattice strips (see `Lattice_OUTER` / `build_lattice.py` CUFF_BANDS). Object deleted from the live scene; regenerate with `build_ankle_reinforce.py`. Not in `EXPORT_NAMES`. |
 
 > The boot mesh still has a `GradientSolidify` modifier, but the solid shell is **not part of the final print** — the lattice handles everything (including the toe, via rib fusion). The export excludes the boot mesh entirely. The modifier's `gradient` vertex group is still used by `build_lattice.py` for toe rib thickening.
 
@@ -58,12 +60,15 @@ Roxanne Shoes/
 
 ## Build Pipeline
 
-Run scripts in this exact order. Each must execute in an **isolated namespace** (`exec(compile(open(path).read(), path, 'exec'), {})`) because they share variable names that collide. **`build_ankle_reinforce.py` MUST run before `build_v_band.py`** (the V band snaps to the reinforce band's evaluated mesh).
+Run scripts in this exact order. Each must execute in an **isolated namespace** (`exec(compile(open(path).read(), path, 'exec'), {})`) because they share variable names that collide. (`build_v_band.py` no longer requires `build_ankle_reinforce.py` — its reinforce-snap is optional and a no-op when the bands are absent.)
 
 ```python
 import bpy
 base = '/home/dustin/Documents/Models/Roxanne Shoes/scripts/'
-for fn in ['build_lattice.py', 'cut_v_through_lattice.py', 'build_rims.py', 'build_ankle_reinforce.py', 'build_v_band.py', 'build_tongue.py']:
+# build_tongue.py OMITTED -- tongue removed (caused sores). Run separately to re-add.
+# build_ankle_reinforce.py OMITTED -- solid cuff bands replaced by fused-lattice strips
+#   (CUFF_BANDS in build_lattice.py). build_v_band.py no longer needs it.
+for fn in ['build_lattice.py', 'cut_v_through_lattice.py', 'build_rims.py', 'build_v_band.py', 'build_ankle_rim.py']:
     exec(compile(open(base + fn).read(), base + fn, 'exec'), {})
 bpy.data.objects['left boot cutout meters'].hide_set(True)
 ```
@@ -76,6 +81,7 @@ bpy.data.objects['left boot cutout meters'].hide_set(True)
 - Generates two contour families: `f = P·phi_lift ± T·s_norm`, marched per-triangle, chained with **tolerant KDTree matching** (tol=6µm). Round-key hashing fragments lines (94% shards); KDTree is required.
 - Offsets each family along the surface normal: outer `+OFFSET_OUT`, inner `−OFFSET_IN` → two parallel layers that cross and fuse at crossings.
 - Per-point rib radius scales with gradient weight (`TOE_SCALE`) → toe ribs thicker and fuse into a solid block; ankle ribs thin (breathable).
+- **Cuff reinforcement**: rib radius is ALSO thickened in two X-bands (`CUFF_BANDS`, centered on the latch posts at x=−6.6mm and x=30mm) via a smooth `cuff_factor` bump. Peak `CUFF_SCALE=2.3` (+10% over the 2.1 average of 2.8 & 1.4 — fuses the collars into a solid strip, but less bulky than the original 2.8; between the bands the fades overlap into a gradually-thickening but mostly-unfused middle). The bump fades over `CUFF_BLEND` (30mm, ~10× the original) — a long gentle cone so movement stress spreads and won't snap at a layer line. Replaces `Ankle_Reinforce`.
 
 ### Step 2 — `cut_v_through_lattice.py`
 - Cuts the V tongue opening using **bisect-planes** (clean edges). Booleans on this open shell fail (they cut the sole instead of the top).
@@ -83,7 +89,7 @@ bpy.data.objects['left boot cutout meters'].hide_set(True)
 
 ### Step 3 — `build_rims.py` (beads REMOVED) + `build_v_band.py` (V trim, v6)
 - The old round rim **beads are gone**. They looked awkward once the solid reinforce bands existed, and the big outer bead fouled the latch/lace.
-- **`build_v_band.py`** replaces them with a flat **V-trim band** along both V edges, built with the SAME technique as the reinforce bands (raycast pristine shell + wall along the true normal). Wall `WALL=0.00165` (slightly thicker than the 1.5mm reinforce bands so their ends hide *under* the V band).
+- **`build_v_band.py`** replaces them with a flat **V-trim band** along both V edges, built with the SAME technique as the reinforce bands (raycast pristine shell + wall along the true normal). Wall `WALL=0.0010`, total width `W_IN+W_OUT=2.0mm` (slimmed for dainty feet; was 1.65mm wall / 3.2mm wide).
   - **Built on the pristine shell via centerline-relative raycast** (`surf()` = ray from smoothed centerline toward the dorsal) — SAME technique as the reinforce bands. Straight-down raycast hit the ankle SIDE WALL (z~12.7mm vs dorsal ~18mm) and produced a 5mm dead-end gap; centerline aim always hits the correct dorsal surface.
   - **TOP built manually** (= base + WALL·normal), NOT via Solidify. Two reasons Solidify was wrong here: (a) on the flat dorsal the normal is vertical so 1.5mm wall = 1.5mm Z-rise, while the reinforce band wraps the curved foot where normals tilt so the same wall = only ~1.0–1.26mm Z-rise → a ~0.3–0.5mm step; (b) Solidify flares open boundary edges backward at the ankle.
   - **Hides the reinforce-band ends**: in the overlap X-ranges, the top Z is `max(natural WALL height, reinforce_top + 0.3mm margin)` — the V band always sits at least 0.3mm ABOVE the band ends, so they tuck under it. ⚠ Earlier code SNAPPED the V band flush to the band top, which clamped the height regardless of `WALL` — changing the wall did nothing visible. `max()` not assignment.
@@ -91,10 +97,10 @@ bpy.data.objects['left boot cutout meters'].hide_set(True)
   - **Full-length taper with a floor**: `width_scale_at(x)` smoothsteps from full width (W_IN+W_OUT) down to `MIN_WIDTH=0.8mm` at the tip, starting past the foot band (x>40mm). The two arms still OVERLAP at the tip (don't vanish to a point). Earlier "collapse in last 12%" was too abrupt and read as blunt/rounded.
   - **`surf()` extrapolates past the open cuff** (x<−9.9, no surface) by reusing the nearest valid hit shifted in −X, so the rails extend to meet the cuff band at the ankle top without a jog. ⚠ Earlier extrapolation that shifted Y by the V-edge slope drifted rightward (the jog) — keep Y fixed, shift X only.
   - **Ankle end at x=−11.5mm** (meets the cuff band at the new print plane).
-  - **REQUIRES `build_ankle_reinforce.py` to run first** (snaps to its evaluated mesh). Pipeline order reflects this.
+  - **`build_ankle_reinforce.py` is now OPTIONAL** — the reinforce-snap (`reinforce_top_z`) is a guarded no-op when `Ankle_Reinforce` is absent, so the V band builds standalone. (It still snaps to hide the band ends if you re-enable the solid bands.)
 - The **ankle perimeter** needs no bead — the cuff reinforce band covers it.
 
-### Step 4 — `build_tongue.py`
+### Step 4 — `build_tongue.py`  ⚠ DISABLED (tongue removed -- caused sores; kept for reversal)
 - Parametric curved surface (conforms to dorsal at tip, arcs toward centerline).
 - Thatched crosshatch: two diagonal families in (u,v) space, clipped to a **superellipse boundary** so lines terminate into the rim (rectangles leave overflow at corners).
 - **Double rim**: outer + inner, both smooth closed superellipse loops. Sides parallel at v=±0.90.
@@ -103,7 +109,7 @@ bpy.data.objects['left boot cutout meters'].hide_set(True)
 - **`FRONT_X` pinned** (0.0974) so the front tip stays attached to the toe wall; length changes happen on the BACK side only (`BACK_X`). Moving the whole object in X detaches the front — never do that.
 - **`BACK_X = −0.01066`** so the rotated back tip lands flush at the print plane x=−11.5mm.
 
-### Step 5 — `build_ankle_reinforce.py`
+### Step 5 — `build_ankle_reinforce.py`  ⚠ DISABLED (solid cuff bands removed — too stiff + lattice sheared at the junction; replaced by cuff-fusion lattice in Step 1)
 - Two **solid bands** on the outer layer for lace/clip anchor points: a cuff band (x[−11.5..3.2]mm, **extended 1mm past the ankle rim** to cover the ankle top) and an above-foot band (x[23.2..36.8]mm), lattice left open between them.
 - Built as a **clean parametric grid** (NOT extracted mesh faces — those spike): for each x-station, raycast a dense angular fan from the smoothed centerline against the pristine closed shell (true surface points/normals), drop the dorsal hits inside the V polygon (keeps the tongue opening clear), resample every cross-section to a fixed point count by arc length → identical-length rows → clean quads, zero raggedness.
 - **Solidify spans BOTH lattice layers**: `thickness=0.0025, offset=0.20` → outer face +1.5mm (covers outer lattice, matches V band), inner face −1.0mm (covers the INNER lattice layer, into the cavity toward the ankle). Was `offset=1.0` (all outward), which left the inner lattice tube ends exposed at the ankle.
@@ -112,6 +118,13 @@ bpy.data.objects['left boot cutout meters'].hide_set(True)
 - This raycast-grid technique is the one that worked; the earlier extract-faces-and-offset approach produced spikes and was scrapped.
 - `use_fill_caps=False` — caps create blobs that look like stray ribs at rim junctions.
 - No separate hinge object — the tongue's tip conforming into the lattice wall is the attachment.
+
+### Step 6 — `build_ankle_rim.py`
+- A tiny (~1mm) finishing rim around the ankle opening so the lattice tubes terminate into something clean (instead of dangling open ends), and the ankle-down first print layer is a tidy ring.
+- Same centerline-raycast cross-section technique as `build_ankle_reinforce.py` (raycast a fan from the centerline against the pristine shell, drop the dorsal V patch, resample to a fixed point count → clean quads). Open-cuff stations past the mesh edge (~−9.98mm) extrapolate from the nearest valid arc, shifted in −X only → a straight lip.
+- `RIM_X = (−10.5, −9.5)mm`: ~0.5mm inside (catches the lattice tubes ending at ~−10.0mm) + ~0.5mm lip past the opening edge.
+- Solidify `thickness=0.0030, offset=0.0` → 3.0mm wall **centered** (±1.5mm), wide enough to cap BOTH lattice layers fully at the cuff thickness (at `CUFF_SCALE=2.3` the fused block is ~3.0mm thick). Keep in sync with `CUFF_SCALE`. (Was 1mm → 2.4mm → 3.0mm as the cuff thickened.)
+- NOT the old stiff cuff band — this is a 1mm lip, ~1mm wide, just for clean termination.
 
 ---
 
@@ -134,11 +147,17 @@ The current version is accepted. Leave it unless explicitly asked to revisit.
 ```
 N_LINES   = 56        # rib count per family
 SWEEP     = 0.50      # spiral twist (0=rings, 1=full turn)
-RIB_RADIUS= 0.00051   # base rib radius (0.51mm)
+RIB_RADIUS= 0.000459  # base rib radius (0.459mm; was 0.51, -10% for harder TPU)
 OFFSET_OUT= 0.000448  # outer layer offset
 OFFSET_IN = 0.000448  # inner layer offset
 SMOOTH_ITERS = 6      # Laplacian smoothing passes
-TOE_SCALE = 2.55      # rib radius multiplier at toe (>1.7 fuses crossings)
+TOE_SCALE = 2.27      # rib radius multiplier at toe (fuses crossings into a solid block)
+
+# CUFF FUSION -- replaces the solid Ankle_Reinforce bands:
+CUFF_HALF_WIDTH=0.0035  # 3.5mm -> 7mm-wide core
+CUFF_BANDS = [(-0.0101,-0.0031),(0.0265,0.0335)]  # centered on latch posts x=-6.6mm, x=30mm
+CUFF_SCALE = 2.3        # peak rib-radius multiplier. +10% over the 2.1 average (of 2.8 & 1.4). >1.7 so the collars FUSE into a solid strip.
+CUFF_BLEND = 0.0300     # fade half-width (m): ~10x the original 3mm -> long gradual cone, spreads movement stress (resists layer-line snapping). At 30mm the 2 bands merge into one reinforced zone; ~0.018 keeps them distinct.
 ```
 OFFSET = 0.000448 was computed to guarantee ≥0.1mm melt at every sole crossing. Don't change without re-running `diagnostics/sole_touch.py`.
 
@@ -170,17 +189,17 @@ ROT_ANGLE_DEG=-5.0    # tongue pitch (pivot at FRONT_X-0.015); backed off 1deg f
 
 ### `build_v_band.py`
 ```
-W_IN=0.0012; W_OUT=0.0020; WALL=0.00165   # wall slightly > reinforce bands (1.5) so their ends hide under it
+W_IN=0.0008; W_OUT=0.0012; WALL=0.0010   # slimmed for dainty feet (was W_IN 1.2 / W_OUT 2.0 / WALL 1.65)
 MIN_WIDTH=0.0008; TAPER_START_X=0.040     # full width past the foot band, then smoothstep taper to 0.8mm floor at tip
-ANKLE_END_X=-0.0115                       # meets the cuff band at the print plane
+ANKLE_END_X=-0.0095                       # V liner reaches the Ankle_Rim at the ankle (extended 1mm from -0.0085)
 HIDE_MARGIN=0.0003                        # V band top sits this far ABOVE reinforce band ends (max(), not snap-to-flush)
 ```
 
-### `build_ankle_reinforce.py`
+### `build_ankle_reinforce.py`  ⚠ DISABLED (solid bands removed; kept for reversal)
 ```
 WALL=0.00150            # 1.5mm (do NOT thicken; V band carries gradient thickening)
 Solidify: thickness=0.00250, offset=0.20   # spans both lattice layers: outer +1.5mm, inner -1.0mm
-STRIPS cuff=(-0.0115, 0.0032)  foot=(0.02325, 0.03675)   # cuff extended 1mm past ankle rim
+STRIPS cuff=(-0.01150, 0.0009)  foot=(0.02425, 0.03575)   # last values before removal (DISABLED)
 EAR_MARGIN=0.0013       # collar wraps into V gap to meet rails; tuned by iteration (further = corners poke out)
 ```
 
@@ -200,7 +219,7 @@ Non-destructive: duplicates the objects → converts COPIES to mesh → joins �
 
 **Never use `export_stl.py`** — it converts/joins the originals in-place, destroying the editable curves.
 
-The exported STL contains Lattice_OUTER + Lattice_INNER + V_Band + Tongue + Ankle_Reinforce, joined (~477k verts). Overlapping geometry is left as-is — the slicer merges it during slicing (standard for multi-part lattice prints).
+The exported STL contains Lattice_OUTER + Lattice_INNER (with fused cuff strips) + V_Band (+ latch posts), joined. **Neither the Tongue nor the solid Ankle_Reinforce bands are exported** — the tongue was removed (sores) and the cuff bands were replaced by fused-lattice strips (too stiff + lattice sheared at the junction). Overlapping geometry is left as-is — the slicer merges it during slicing (standard for multi-part lattice prints).
 
 ---
 
@@ -245,11 +264,16 @@ The exported STL contains Lattice_OUTER + Lattice_INNER + V_Band + Tongue + Ankl
 **Complete:**
 - Bi-helical contour lattice (per-triangle unwrap, smooth, continuous, fuses at toe)
 - V tongue cutout (150% wide, rotated, clean bisect edges; deepened TIP_X=0.1014)
-- Tongue (thatched crosshatch, double rounded rim, visor bend, −4° rotation, FRONT_X pinned at 0.0974; BACK_X extended to −0.01066 so the back tip is flush at the print plane x=−11.5mm; front attachment preserved)
-- **V-trim band v6** (`build_v_band.py`): flat trim along both V edges, 1.65mm wall (slightly > reinforce bands so their ends hide under it), centerline-raycast surface, manual top with `max()` hide-margin, two tip verts (no sunken notch), full-length taper with 0.8mm floor (arms overlap at tip), extrapolates past the open cuff to meet the collar
-- **Reinforce bands**: 1.5mm wall, Solidify spans both lattice layers (outer +1.5mm / inner −1.0mm); cuff band extended 1mm past the ankle rim; collar-to-rail gap filled (EAR_MARGIN=1.3mm)
+- ~~Tongue~~ **REMOVED from print** (caused sores on the dog's feet — see "Removed" below)
+- **V-trim band v6** (`build_v_band.py`): flat trim along both V edges, 1.0mm wall / 2.0mm wide (slimmed for dainty feet; was 1.65mm / 3.2mm), centerline-raycast surface, manual top, two tip verts (no sunken notch), full-length taper with 0.8mm floor (arms overlap at tip), extrapolates past the open cuff to meet the collar
+- ~~Reinforce bands~~ **REMOVED from print** (replaced by cuff-fusion lattice — see "Removed" below)
 - Sole-touch guarantee (offset 0.448mm → all crossings melt ≥0.1mm)
+- **Ankle rim** (`build_ankle_rim.py`): ~1mm finishing lip around the ankle opening, 3.0mm wall centered to cap BOTH lattice layers at the cuff thickness (no loose tube ends)
 - Non-destructive STL export (baseline — no ankle flatten/cap)
+
+**Removed:**
+- **Tongue flap** — the thatched tongue that covered the V opening was removed because it pressed on the dog's paw and caused sores. The V opening on the dorsal top is now left open (which also aids paw entry and ventilation). Reversal path: re-run `build_tongue.py` and add `'Tongue'` back to `EXPORT_NAMES` in `safe_export_stl.py`. The `Tongue` object is deleted from the live `shoe.blend`; `build_tongue.py` regenerates it. If sores persist after removing the tongue, the next suspect is the **V-band trim edges** — they can be smoothed/rounded.
+- **Solid cuff bands (`Ankle_Reinforce`)** — the two solid bands (cuff + above-foot) were too stiff, and the lattice kept shearing off at the hard band/lattice junction. Replaced by **lattice-fused collars with a long gradual fade**: `build_lattice.py` thickens the ribs in two X-bands (`CUFF_BANDS`, centered on the latch posts) to peak `CUFF_SCALE=2.3` (+10% over the 2.1 average of an earlier 2.8 — too bulky — and 1.4 — too thin to fuse; 2.3 fuses the collars into a solid strip without the bulk), fading over `CUFF_BLEND=30mm` (~10× the original taper) so stress spreads and won't snap at a layer line. The transition is gradual (no hard junction to shear at) and the region flexes more than a solid band. Reversal: re-run `build_ankle_reinforce.py` (the V band auto-detects it) and add `'Ankle_Reinforce'` back to `EXPORT_NAMES`.
 
 **Known / accepted:**
 - Faint seam at y≈−1.5 down the top center
@@ -280,7 +304,7 @@ A Blender MCP server (`blender_execute_blender_code`) is available to edit the *
 ## Iterating
 
 1. Edit a build script (knob values) or tweak objects directly in Blender.
-2. Run the pipeline (above) — idempotent, regenerates from BACKUP. Order matters: `build_ankle_reinforce.py` before `build_v_band.py`.
+2. Run the pipeline (above) — idempotent, regenerates from BACKUP. (Reinforce-snap in `build_v_band.py` is optional, so order no longer constrains it.)
 3. For LIVE iteration: write the rebuild to `/tmp/*.py`, `exec` it via the MCP server, force redraw, save. Verify on disk with a background Blender probe.
 4. Save: `bpy.ops.wm.save_as_mainfile(filepath='/home/dustin/Documents/Models/Roxanne Shoes/shoe.blend')`
 5. Export: run `safe_export_stl.py`.

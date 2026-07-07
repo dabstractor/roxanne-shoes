@@ -39,16 +39,19 @@ pkd = KDTree(len(Varr))
 for i, c in enumerate(Varr): pkd.insert(c, i)
 pkd.balance()
 
-# --- reinforce band BVH (snap target) ---
+# --- reinforce band BVH (snap target) -- OPTIONAL. The solid Ankle_Reinforce bands
+# were removed (replaced by fused-lattice strips in build_lattice.py). If present we
+# still hide their ends under the V band; if absent, the V band builds at its natural
+# WALL height everywhere (nothing to hide).
 ar_obj = bpy.data.objects.get('Ankle_Reinforce')
-if ar_obj is None:
-    raise RuntimeError('build_ankle_reinforce.py must run BEFORE build_v_band.py')
-dg = bpy.context.evaluated_depsgraph_get()
-ar_eo = ar_obj.evaluated_get(dg)
-ar_em = ar_eo.to_mesh()
-arV = [tuple(v.co) for v in ar_em.vertices]
-ar_polys = [list(p.vertices) for p in ar_em.polygons]
-ar_bvh = BVHTree.FromPolygons(arV, ar_polys, all_triangles=False)
+ar_eo = None; ar_bvh = None
+if ar_obj is not None:
+    dg = bpy.context.evaluated_depsgraph_get()
+    ar_eo = ar_obj.evaluated_get(dg)
+    ar_em = ar_eo.to_mesh()
+    arV = [tuple(v.co) for v in ar_em.vertices]
+    ar_polys = [list(p.vertices) for p in ar_em.polygons]
+    ar_bvh = BVHTree.FromPolygons(arV, ar_polys, all_triangles=False)
 
 # --- smoothed centerline + ridge (identical params to build_ankle_reinforce.py) ---
 xmin=float(Varr[:,0].min()); xmax=float(Varr[:,0].max())
@@ -93,8 +96,8 @@ def rot(x,y):
     return (cxv+dx*cos_t-y*sin_t, dx*sin_t+y*cos_t)
 
 # band params
-W_IN=0.0012; W_OUT=0.0020; WALL=0.00165
-ANKLE_END_X=-0.0085   # stop where surface exists (no extrapolation -> no jog). Collar ears bridge to the cuff band.
+W_IN=0.0008; W_OUT=0.0012; WALL=0.0010   # slimmed for dainty feet (was W_IN 1.2 / W_OUT 2.0 / WALL 1.65)
+ANKLE_END_X=-0.0095   # extended 1mm toward the ankle so the V liner reaches the Ankle_Rim (was -0.0085). Surface still exists here (mesh edge ~-9.98mm).
 # overlap ranges must MATCH the (possibly trimmed) Ankle_Reinforce STRIPS extents, else
 # reinforce_top_z() raycasts past the band end and the V band won't hide the band ends.
 OVERLAP_X=[(-0.0115,0.0012),(0.02425,0.03575)]
@@ -142,7 +145,7 @@ def reinforce_top_z(x, y, z_above):
     natural top (z_above): at the ankle the ray can otherwise punch through and
     hit the band's underside / inner wall (~12mm), snapping the top DOWN and
     creating a gap. Reject those."""
-    if not in_overlap(x): return None
+    if ar_bvh is None or not in_overlap(x): return None
     loc,nrm,idx,d=ar_bvh.ray_cast((x,y,z_above+0.004),(0,0,-1),0.006)
     if loc is None: return None
     if loc.z < z_above - 0.0003:   # hit below the natural top -> wrong surface, reject
@@ -301,7 +304,8 @@ bm.normal_update()
 print('  normal-fix: recalc_face_normals + verify -> %s'%_flipped)
 me=bpy.data.meshes.new('V_Band'); bm.to_mesh(me); bm.free(); me.update()
 obj=bpy.data.objects.new('V_Band',me); bpy.context.collection.objects.link(obj); obj.parent=boot
-ar_eo.to_mesh_clear()
+if ar_eo is not None:
+    ar_eo.to_mesh_clear()
 
 # (BASELINE: print-plane trim removed per user request. The V band ankle cap stays
 # as-built; flattening will be re-solved a different way later.)
