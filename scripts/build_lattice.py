@@ -114,8 +114,9 @@ SMOOTH_ITERS=6; TOE_SCALE=2.27
 CUFF_HALF_WIDTH=0.0035   # 3.5mm -> 7mm-wide fused core (was ~12mm solid band)
 CUFF_BANDS=[(-0.0040-CUFF_HALF_WIDTH, -0.0040+CUFF_HALF_WIDTH),   # near-ankle strip, centered on cuff posts x=-4.0mm (posts moved +X to clear the Ankle_Rim)
             ( 0.0300-CUFF_HALF_WIDTH,  0.0300+CUFF_HALF_WIDTH)]   # above-foot strip, on foot posts x=30.0mm
-CUFF_SCALE=2.3          # peak rib-radius multiplier at band centers. +10% over 2.1. >1.7 so the tubes FUSE into a solid strip.
+CUFF_SCALE=1.863        # peak rib-radius multiplier at band centers. -10% again (was 2.07/2.3; ankles were too stiff). Still >1.7 so the tubes FUSE into a solid strip.
 CUFF_BLEND=0.0300       # fade half-width (m): radius ramps 1->CUFF_SCALE->1 across this. ~10x the original 3mm -> a long gradual cone that spreads movement stress (resists snapping at layer lines). NB at 30mm the 2 bands' fades overlap into one reinforced zone; use ~0.018 to keep them as 2 distinct cones.
+THIN_FLOOR=1.730        # minimum rib-radius multiplier. +10% again (was 1.573/1.43; foot was too fragile). Wider thin tubes for per-layer bond strength.
 def cuff_factor(x):
     # smooth bump in [0,1]: 1.0 inside a band, fading to 0 over CUFF_BLEND beyond each edge.
     best=0.0
@@ -224,6 +225,7 @@ def make_curve(name, loops):
             co,idx,dist=kd_w.find((float(p[0]),float(p[1]),float(p[2])))
             wt=w[idx]
             rad=max(1.0+(TOE_SCALE-1.0)*wt, 1.0+(CUFF_SCALE-1.0)*cuff_factor(float(p[0])))
+            rad=max(rad, THIN_FLOOR)   # floor the thinnest tubes +20% for bond strength
             sp.points[i].co=(float(p[0]),float(p[1]),float(p[2]),1.0)
             sp.points[i].radius=rad
     o=bpy.data.objects.new(name,crv); bpy.context.collection.objects.link(o); o.parent=boot

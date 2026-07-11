@@ -81,7 +81,7 @@ bpy.data.objects['left boot cutout meters'].hide_set(True)
 - Generates two contour families: `f = P·phi_lift ± T·s_norm`, marched per-triangle, chained with **tolerant KDTree matching** (tol=6µm). Round-key hashing fragments lines (94% shards); KDTree is required.
 - Offsets each family along the surface normal: outer `+OFFSET_OUT`, inner `−OFFSET_IN` → two parallel layers that cross and fuse at crossings.
 - Per-point rib radius scales with gradient weight (`TOE_SCALE`) → toe ribs thicker and fuse into a solid block; ankle ribs thin (breathable).
-- **Cuff reinforcement**: rib radius is ALSO thickened in two X-bands (`CUFF_BANDS`, centered on the cuff posts at x=−4.0mm and the foot posts at x=30mm) via a smooth `cuff_factor` bump. Peak `CUFF_SCALE=2.3` (+10% over the 2.1 average of 2.8 & 1.4 — fuses the collars into a solid strip, but less bulky than the original 2.8; between the bands the fades overlap into a gradually-thickening but mostly-unfused middle). The bump fades over `CUFF_BLEND` (30mm, ~10× the original) — a long gentle cone so movement stress spreads and won't snap at a layer line. Replaces `Ankle_Reinforce`.
+- **Cuff reinforcement**: rib radius is ALSO thickened in two X-bands (`CUFF_BANDS`, centered on the cuff posts at x=−4.0mm and the foot posts at x=30mm) via a smooth `cuff_factor` bump. Peak `CUFF_SCALE=1.863` (-10% again from 2.07/2.3, evening the lattice vs the thin floor — fuses the collars into a solid strip, but less bulky than the original 2.8; between the bands the fades overlap into a gradually-thickening but mostly-unfused middle). The bump fades over `CUFF_BLEND` (30mm, ~10× the original) — a long gentle cone so movement stress spreads and won't snap at a layer line. Replaces `Ankle_Reinforce`.
 
 ### Step 2 — `cut_v_through_lattice.py`
 - Cuts the V tongue opening using **bisect-planes** (clean edges). Booleans on this open shell fail (they cut the sole instead of the top).
@@ -123,7 +123,7 @@ bpy.data.objects['left boot cutout meters'].hide_set(True)
 - A tiny (~1mm) finishing rim around the ankle opening so the lattice tubes terminate into something clean (instead of dangling open ends), and the ankle-down first print layer is a tidy ring.
 - Same centerline-raycast cross-section technique as `build_ankle_reinforce.py` (raycast a fan from the centerline against the pristine shell, drop the dorsal V patch, resample to a fixed point count → clean quads). Open-cuff stations past the mesh edge (~−9.98mm) extrapolate from the nearest valid arc, shifted in −X only → a straight lip.
 - `RIM_X = (−10.5, −9.5)mm`: ~0.5mm inside (catches the lattice tubes ending at ~−10.0mm) + ~0.5mm lip past the opening edge.
-- Solidify `thickness=0.0030, offset=0.0` → 3.0mm wall **centered** (±1.5mm), wide enough to cap BOTH lattice layers fully at the cuff thickness (at `CUFF_SCALE=2.3` the fused block is ~3.0mm thick). Keep in sync with `CUFF_SCALE`. (Was 1mm → 2.4mm → 3.0mm as the cuff thickened.)
+- Solidify `thickness=0.0030, offset=0.0` → 3.0mm wall **centered** (±1.5mm), wide enough to cap BOTH lattice layers fully at the cuff thickness (at `CUFF_SCALE=1.863` the fused block is ~2.6mm thick, so the 3.0mm rim covers it). Keep in sync with `CUFF_SCALE`.
 - NOT the old stiff cuff band — this is a 1mm lip, ~1mm wide, just for clean termination.
 
 ---
@@ -156,8 +156,9 @@ TOE_SCALE = 2.27      # rib radius multiplier at toe (fuses crossings into a sol
 # CUFF FUSION -- replaces the solid Ankle_Reinforce bands:
 CUFF_HALF_WIDTH=0.0035  # 3.5mm -> 7mm-wide core
 CUFF_BANDS = [(-0.0075,-0.0005),(0.0265,0.0335)]  # centered on cuff posts x=-4.0mm (moved +X to clear Ankle_Rim) and foot posts x=30mm
-CUFF_SCALE = 2.3        # peak rib-radius multiplier. +10% over the 2.1 average (of 2.8 & 1.4). >1.7 so the collars FUSE into a solid strip.
+CUFF_SCALE = 1.863      # peak rib-radius multiplier. -10% again (was 2.07/2.3). >1.7 so the collars FUSE into a solid strip.
 CUFF_BLEND = 0.0300     # fade half-width (m): ~10x the original 3mm -> long gradual cone, spreads movement stress (resists layer-line snapping). At 30mm the 2 bands merge into one reinforced zone; ~0.018 keeps them distinct.
+THIN_FLOOR = 1.730      # min rib-radius multiplier. +10% again (was 1.573/1.43) for per-layer bond strength; cuff/toe unaffected.
 ```
 OFFSET = 0.000448 was computed to guarantee ≥0.1mm melt at every sole crossing. Don't change without re-running `diagnostics/sole_touch.py`.
 
@@ -273,7 +274,7 @@ The exported STL contains Lattice_OUTER + Lattice_INNER (with fused cuff strips)
 
 **Removed:**
 - **Tongue flap** — the thatched tongue that covered the V opening was removed because it pressed on the dog's paw and caused sores. The V opening on the dorsal top is now left open (which also aids paw entry and ventilation). Reversal path: re-run `build_tongue.py` and add `'Tongue'` back to `EXPORT_NAMES` in `safe_export_stl.py`. The `Tongue` object is deleted from the live `shoe.blend`; `build_tongue.py` regenerates it. If sores persist after removing the tongue, the next suspect is the **V-band trim edges** — they can be smoothed/rounded.
-- **Solid cuff bands (`Ankle_Reinforce`)** — the two solid bands (cuff + above-foot) were too stiff, and the lattice kept shearing off at the hard band/lattice junction. Replaced by **lattice-fused collars with a long gradual fade**: `build_lattice.py` thickens the ribs in two X-bands (`CUFF_BANDS`, centered on the latch posts) to peak `CUFF_SCALE=2.3` (+10% over the 2.1 average of an earlier 2.8 — too bulky — and 1.4 — too thin to fuse; 2.3 fuses the collars into a solid strip without the bulk), fading over `CUFF_BLEND=30mm` (~10× the original taper) so stress spreads and won't snap at a layer line. The transition is gradual (no hard junction to shear at) and the region flexes more than a solid band. Reversal: re-run `build_ankle_reinforce.py` (the V band auto-detects it) and add `'Ankle_Reinforce'` back to `EXPORT_NAMES`.
+- **Solid cuff bands (`Ankle_Reinforce`)** — the two solid bands (cuff + above-foot) were too stiff, and the lattice kept shearing off at the hard band/lattice junction. Replaced by **lattice-fused collars with a long gradual fade**: `build_lattice.py` thickens the ribs in two X-bands (`CUFF_BANDS`, centered on the latch posts) to peak `CUFF_SCALE=1.863` (-10% again from 2.07/2.3 — fuses the collars into a solid strip without the bulk; paired with a +10% wider THIN_FLOOR to even the lattice), fading over `CUFF_BLEND=30mm` (~10× the original taper) so stress spreads and won't snap at a layer line. The transition is gradual (no hard junction to shear at) and the region flexes more than a solid band. Reversal: re-run `build_ankle_reinforce.py` (the V band auto-detects it) and add `'Ankle_Reinforce'` back to `EXPORT_NAMES`.
 
 **Known / accepted:**
 - Faint seam at y≈−1.5 down the top center
